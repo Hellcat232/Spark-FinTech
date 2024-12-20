@@ -9,15 +9,14 @@ import {
   signUpController,
   signInController,
   logOutController,
+  refreshController,
 } from '../controllers/user-controllers.js';
 
 const authRoute = express.Router();
 
-authRoute.post(
-  '/register',
-  validateBody(validationSignUp),
-  ctrlWrapper(signUpController),
-);
+authRoute.post('/register', validateBody(validationSignUp), ctrlWrapper(signUpController));
+
+authRoute.post('/refresh', ctrlWrapper(refreshController));
 authRoute.post('/login', validateBody(validationSignIn), ctrlWrapper(signInController));
 authRoute.post('/logout', ctrlWrapper(logOutController));
 
