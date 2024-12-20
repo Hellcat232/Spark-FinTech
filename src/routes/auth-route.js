@@ -15,9 +15,8 @@ import {
 const authRoute = express.Router();
 
 authRoute.post('/register', validateBody(validationSignUp), ctrlWrapper(signUpController));
-
-authRoute.post('/refresh', ctrlWrapper(refreshController));
 authRoute.post('/login', validateBody(validationSignIn), ctrlWrapper(signInController));
+authRoute.post('/refresh', ctrlWrapper(refreshController));
 authRoute.post('/logout', ctrlWrapper(logOutController));
 
 export default authRoute;

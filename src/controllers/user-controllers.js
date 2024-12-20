@@ -27,10 +27,10 @@ export const signUpController = async (req, res) => {
 };
 
 export const signInController = async (req, res) => {
-  const { email } = req.body;
+  const { email, password } = req.body;
   const { sessionId } = req.cookies;
 
-  const { currentUser, newSession } = await signIn(email, sessionId);
+  const { currentUser, newSession } = await signIn(email, password, sessionId);
 
   res.cookie('sessionId', newSession._id, {
     httpOnly: true,

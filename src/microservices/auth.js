@@ -1,5 +1,6 @@
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
+import { compareHash } from '../utils/hash.js';
 
 import { env } from '../utils/env.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
@@ -22,22 +23,27 @@ export const signUp = async (body) => {
   return { registerUser, newSession };
 };
 
-export const signIn = async (email, sessionId) => {
+export const signIn = async (email, password, sessionId) => {
   const existingUser = await UserRegisterCollection.findOne({ email });
   if (!existingUser) {
     throw createHttpError(404, 'Such user not found, try register');
   }
 
-  const currentUser = await UserRegisterCollection.findOne({ email });
+  const comparePassword = await compareHash(password, existingUser.password);
+  if (!comparePassword) {
+    throw createHttpError(401, 'Email or password invalid');
+  }
+
+  //   const currentUser = await UserRegisterCollection.findOne({ email });
 
   const data = {
     sessionId,
-    userId: currentUser._id,
+    userId: existingUser._id,
   };
 
   const newSession = await createSession(data);
 
-  return { currentUser, newSession };
+  return { currentUser: existingUser, newSession };
 };
 
 export const refresh = async (sessionId, refreshToken) => {
@@ -80,10 +86,10 @@ export const logOut = async (sessionId, refreshToken) => {
     throw createHttpError(404, 'Such user not found');
   }
 
-  const isLogged = await findSession({ _id: sessionId });
-  if (!isLogged) {
-    throw createHttpError(401, 'User not authorized');
-  }
+  //   const isLogged = await findSession({ _id: sessionId });
+  //   if (!isLogged) {
+  //     throw createHttpError(401, 'User not authorized');
+  //   }
 
   await deleteSession({ _id: sessionId });
 };

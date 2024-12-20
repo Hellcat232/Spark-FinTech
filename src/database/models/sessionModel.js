@@ -1,5 +1,7 @@
 import { Schema, model } from 'mongoose';
 
+import { mongooseSaveError } from './hooks.js';
+
 const sessionSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'users', required: true },
@@ -10,5 +12,7 @@ const sessionSchema = new Schema(
   },
   { versionKey: false, timestamps: true },
 );
+
+sessionSchema.post('save', mongooseSaveError);
 
 export const SessionCollection = model('session', sessionSchema);

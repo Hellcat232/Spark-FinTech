@@ -1,10 +1,13 @@
 import { Schema, model } from 'mongoose';
 
+import { mongooseSaveError, encryptPassword } from './hooks.js';
+
 import {
   emailRegExp,
   phoneNumberRegExp,
   postCodeRegExp,
   stateRegExp,
+  dateOfBirthValidation,
 } from '../../constants/authConstants.js';
 
 const userSchema = new Schema(
@@ -48,16 +51,7 @@ const userSchema = new Schema(
       type: Date,
       required: [true, 'Date of birth is required.'],
       validate: {
-        validator: function (value) {
-          const today = new Date();
-          const age = today.getFullYear() - value.getFullYear();
-          const monthDiff = today.getMonth() - value.getMonth();
-          const dayDiff = today.getDate() - value.getDate();
-          if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-            return age - 1 >= 18;
-          }
-          return age >= 18;
-        },
+        validator: dateOfBirthValidation,
         message: 'User must be at least 18 years old.',
       },
     },
@@ -88,5 +82,8 @@ const userSchema = new Schema(
 
   { versionKey: false, timestamps: true },
 );
+
+userSchema.pre('save', encryptPassword);
+userSchema.post('save', mongooseSaveError);
 
 export const UserRegisterCollection = model('user', userSchema);
