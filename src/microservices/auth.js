@@ -106,7 +106,7 @@ export const logOut = async (sessionId, refreshToken) => {
     throw createHttpError(404, 'Such user not found');
   }
 
-  await deleteSession({ _id: sessionId });
+  await deleteSession({ _id: sessionId, userId });
 };
 
 export const findUser = (filter) => UserRegisterCollection.findOne(filter);
