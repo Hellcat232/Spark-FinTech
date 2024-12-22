@@ -1,5 +1,7 @@
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 
+import { sendEmail } from '../utils/sendHostedLink.js';
+
 export const linkTokenCreator = async (body, userId) => {
   const request = {
     user: {
@@ -7,7 +9,7 @@ export const linkTokenCreator = async (body, userId) => {
       phone_number: `+${body.phoneNumber}`,
     },
     client_name: `${body.firstName} ${body.lastName}`,
-    products: ['transactions'],
+    products: ['auth', 'transactions'],
     transactions: {
       days_requested: 730,
     },
