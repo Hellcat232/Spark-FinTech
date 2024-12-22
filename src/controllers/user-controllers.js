@@ -15,7 +15,7 @@ export const signUpController = async (req, res) => {
     message: 'New user added',
     data: {
       registerUser,
-      accessToken: newSession.accessToken,
+      accessToken: newSession[0].accessToken,
     },
   });
 };
@@ -34,7 +34,7 @@ export const signInController = async (req, res) => {
     message: 'Login successfully',
     data: {
       currentUser,
-      accessToken: newSession.accessToken,
+      accessToken: newSession[0].accessToken,
     },
   });
 };
@@ -49,7 +49,7 @@ export const refreshController = async (req, res) => {
   res.status(200).json({
     status: 200,
     message: 'Refresh successfully',
-    data: { currentUser, accessToken: newSession.accessToken },
+    data: { currentUser, accessToken: newSession[0].accessToken },
   });
 };
 

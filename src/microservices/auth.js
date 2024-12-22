@@ -1,5 +1,6 @@
 import createHttpError from 'http-errors';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { compareHash } from '../utils/hash.js';
 
 import { env } from '../utils/env.js';
@@ -14,37 +15,43 @@ import {
 } from './sandboxPlaid.js'; /*SANDBOX*/
 
 export const signUp = async (body) => {
-  const existingUser = await UserRegisterCollection.findOne({ email: body.email });
-  if (existingUser) {
-    throw createHttpError(409, 'Such email already exists');
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const existingUser = await UserRegisterCollection.findOne({ email: body.email }).session(
+      session,
+    );
+    if (existingUser) {
+      throw createHttpError(409, 'Such email already exists');
+    }
+
+    const registerUser = await UserRegisterCollection.create([body], { session });
+
+    const newSession = await createSession({ userId: registerUser[0]._id }, session);
+
+    const request = {
+      institution_id: 'ins_1',
+      initial_products: ['auth'],
+    };
+    const publicToken = await createPublicTokenSandbox(request);
+
+    const { plaidAccessToken, plaidItemId } = await exchangePublicTokenSandbox(publicToken);
+
+    await UserRegisterCollection.findByIdAndUpdate(
+      registerUser[0]._id,
+      { plaidAccessToken, plaidItemId },
+      { session },
+    );
+
+    await session.commitTransaction();
+    return { registerUser, newSession };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-
-  const registerUser = await UserRegisterCollection.create(body);
-
-  const data = {
-    userId: registerUser._id,
-  };
-
-  const newSession = await createSession(data);
-
-  const request = {
-    institution_id: 'ins_1',
-    initial_products: ['auth'],
-  };
-
-  const publicToken = await createPublicTokenSandbox(request);
-
-  const { plaidAccessToken, plaidItemId } = await exchangePublicTokenSandbox(publicToken);
-
-  await UserRegisterCollection.findByIdAndUpdate(
-    { _id: registerUser._id },
-    {
-      plaidAccessToken,
-      plaidItemId,
-    },
-  );
-
-  return { registerUser, newSession };
 };
 
 export const signIn = async (email, password, sessionId) => {
@@ -67,6 +74,10 @@ export const signIn = async (email, password, sessionId) => {
 };
 
 export const refresh = async (sessionId, refreshToken) => {
+  if (!sessionId && !refreshToken) {
+    throw createHttpError(401, 'User not authorized');
+  }
+
   const verifyToken = await jwt.verify(refreshToken, env('JWT_SECRET'));
   if (!verifyToken) {
     throw createHttpError(401, 'Token invalid!');
