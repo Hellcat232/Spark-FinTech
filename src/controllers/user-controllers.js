@@ -1,20 +1,14 @@
 import createHttpError from 'http-errors';
 import { signUp, signIn, refresh, logOut, findUser } from '../microservices/auth.js';
 
+import { setupSessionCookies } from '../utils/setupSessionCookies.js';
+
 export const signUpController = async (req, res) => {
   const body = req.body;
 
   const { newSession, registerUser } = await signUp(body);
 
-  res.cookie('sessionId', newSession._id, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
-
-  res.cookie('refreshToken', newSession.refreshToken, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
+  setupSessionCookies(res, newSession);
 
   res.status(201).json({
     status: 201,
@@ -32,14 +26,8 @@ export const signInController = async (req, res) => {
 
   const { currentUser, newSession } = await signIn(email, password, sessionId);
 
-  res.cookie('sessionId', newSession._id, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
-  res.cookie('refreshToken', newSession.refreshToken, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
+  res.clearCookie('sessionId');
+  setupSessionCookies(res, newSession);
 
   res.status(200).json({
     status: 200,
@@ -56,17 +44,10 @@ export const refreshController = async (req, res) => {
 
   const { newSession, currentUser } = await refresh(sessionId, refreshToken);
 
-  res.cookie('sessionId', newSession._id, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
-  res.cookie('refreshToken', newSession.refreshToken, {
-    httpOnly: true,
-    expires: newSession.refreshTokenValidUntil,
-  });
+  setupSessionCookies(res, newSession);
 
-  res.status(202).json({
-    status: 202,
+  res.status(200).json({
+    status: 200,
     message: 'Refresh successfully',
     data: { currentUser, accessToken: newSession.accessToken },
   });

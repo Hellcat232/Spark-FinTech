@@ -10,7 +10,7 @@ const jwt_secret = env('JWT_SECRET');
 
 export const createSession = async ({ sessionId, userId }) => {
   if (sessionId) {
-    await SessionCollection.findOneAndDelete(sessionId);
+    await SessionCollection.deleteOne({ _id: sessionId, userId });
   }
 
   const payload = {
@@ -33,4 +33,4 @@ export const createSession = async ({ sessionId, userId }) => {
 
 export const deleteSession = (filter) => SessionCollection.deleteOne(filter);
 
-export const findSession = (filter) => SessionCollection.findById(filter);
+export const findSession = (filter) => SessionCollection.findOne(filter);

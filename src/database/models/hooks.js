@@ -17,3 +17,13 @@ export const encryptPassword = async function (next) {
     next(error);
   }
 };
+
+export function displayField(schema, fieldsToOmit = []) {
+  schema.methods.toJSON = function () {
+    const user = this.toObject();
+
+    fieldsToOmit.forEach((field) => delete user[field]);
+
+    return user;
+  };
+}

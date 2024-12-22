@@ -1,6 +1,6 @@
 import { Schema, model } from 'mongoose';
 
-import { mongooseSaveError, encryptPassword } from './hooks.js';
+import { mongooseSaveError, encryptPassword, displayField } from './hooks.js';
 
 import {
   emailRegExp,
@@ -78,6 +78,8 @@ const userSchema = new Schema(
         match: [postCodeRegExp, 'Please enter a valid US postal code.'],
       },
     },
+    plaidAccessToken: { type: String, required: false },
+    plaidItemId: { type: String, required: false },
   },
 
   { versionKey: false, timestamps: true },
@@ -85,5 +87,6 @@ const userSchema = new Schema(
 
 userSchema.pre('save', encryptPassword);
 userSchema.post('save', mongooseSaveError);
+displayField(userSchema, ['password', 'plaidAccessToken', 'plaidItemId']);
 
 export const UserRegisterCollection = model('user', userSchema);

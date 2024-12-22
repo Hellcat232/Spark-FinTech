@@ -5,6 +5,13 @@ import { compareHash } from '../utils/hash.js';
 import { env } from '../utils/env.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
 import { createSession, deleteSession, findSession } from './session.js';
+import { plaidClient } from '../thirdAPI/initPlaid.js';
+
+// import { linkTokenCreator, createPublicToken, exchangePublicToken } from './productionPlaid.js'; /*PRODUCTION*/
+import {
+  createPublicTokenSandbox,
+  exchangePublicTokenSandbox,
+} from './sandboxPlaid.js'; /*SANDBOX*/
 
 export const signUp = async (body) => {
   const existingUser = await UserRegisterCollection.findOne({ email: body.email });
@@ -20,21 +27,34 @@ export const signUp = async (body) => {
 
   const newSession = await createSession(data);
 
+  const request = {
+    institution_id: 'ins_1',
+    initial_products: ['auth'],
+  };
+
+  const publicToken = await createPublicTokenSandbox(request);
+
+  const { plaidAccessToken, plaidItemId } = await exchangePublicTokenSandbox(publicToken);
+
+  await UserRegisterCollection.findByIdAndUpdate(
+    { _id: registerUser._id },
+    {
+      plaidAccessToken,
+      plaidItemId,
+    },
+  );
+
   return { registerUser, newSession };
 };
 
 export const signIn = async (email, password, sessionId) => {
   const existingUser = await UserRegisterCollection.findOne({ email });
-  if (!existingUser) {
-    throw createHttpError(404, 'Such user not found, try register');
-  }
+  if (!existingUser) throw createHttpError(404, 'Such user not found, try register');
 
   const comparePassword = await compareHash(password, existingUser.password);
   if (!comparePassword) {
     throw createHttpError(401, 'Email or password invalid');
   }
-
-  //   const currentUser = await UserRegisterCollection.findOne({ email });
 
   const data = {
     sessionId,
@@ -47,16 +67,6 @@ export const signIn = async (email, password, sessionId) => {
 };
 
 export const refresh = async (sessionId, refreshToken) => {
-  const currentSession = await findSession({ _id: sessionId });
-  if (!currentSession) {
-    throw createHttpError(404, 'Session not found!');
-  }
-
-  const isExpiredSession = new Date() > new Date(currentSession.refreshTokenValidUntil);
-  if (isExpiredSession) {
-    throw createHttpError(401, 'Session expired!');
-  }
-
   const verifyToken = await jwt.verify(refreshToken, env('JWT_SECRET'));
   if (!verifyToken) {
     throw createHttpError(401, 'Token invalid!');
@@ -67,8 +77,18 @@ export const refresh = async (sessionId, refreshToken) => {
     throw createHttpError(404, 'Such user not found');
   }
 
+  const currentSession = await findSession({ _id: sessionId, userId: verifyToken.userId });
+  if (!currentSession) {
+    throw createHttpError(404, 'Session not found!');
+  }
+
+  const isExpiredSession = new Date() > new Date(currentSession.refreshTokenValidUntil);
+  if (isExpiredSession) {
+    throw createHttpError(401, 'Session expired!');
+  }
+
   const data = {
-    sessionId,
+    sessionId: currentSession._id,
     userId: isUser._id,
   };
 
@@ -85,11 +105,6 @@ export const logOut = async (sessionId, refreshToken) => {
     await deleteSession({ _id: sessionId });
     throw createHttpError(404, 'Such user not found');
   }
-
-  //   const isLogged = await findSession({ _id: sessionId });
-  //   if (!isLogged) {
-  //     throw createHttpError(401, 'User not authorized');
-  //   }
 
   await deleteSession({ _id: sessionId });
 };

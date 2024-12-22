@@ -1,9 +1,9 @@
 import createHttpError from 'http-errors';
 
-export const validateBody = (schema) => {
+export const validateBody = (schema, type = 'body') => {
   const func = async (req, res, next) => {
     try {
-      await schema.validateAsync(req.body, { abortEarly: false });
+      await schema.validateAsync(req[type], { abortEarly: false });
 
       next();
     } catch (err) {
