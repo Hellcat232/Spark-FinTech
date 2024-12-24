@@ -1,12 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
 
 import { env } from './utils/env.js';
 import notFoundHandler from './middleware/notFoundHandler.js';
 import errorHandle from './middleware/errorHandle.js';
 
 import authRoute from './routes/auth-route.js';
+import plaidRoute from './routes/plaid-route.js';
 
 const PORT = env('PORT');
 
@@ -16,8 +18,10 @@ const server = () => {
   app.use(cors());
   app.use(express.json());
   app.use(cookieParser());
+  // app.use(bodyParser.json());
 
   app.use('/api/auth', authRoute);
+  app.use('/api/plaid', plaidRoute);
 
   app.use('*', notFoundHandler);
 
