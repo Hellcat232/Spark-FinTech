@@ -1,4 +1,6 @@
-import { plaidClient } from '../thirdAPI/initPlaid.js';
+import { exchangePublicToken } from '../microservices/sandboxPlaid.js';
+
+import { UserRegisterCollection } from '../database/models/userModel.js';
 
 // Обработка хука для SESSION_FINISHED
 export const handleSessionFinishedWebhook = async (webhookData) => {
@@ -9,9 +11,11 @@ export const handleSessionFinishedWebhook = async (webhookData) => {
     for (const token of public_tokens) {
       console.log(`Processing public token: ${token}`);
       // Логика обработки токена, например, обмен на access_token
-      const response = await plaidClient.itemPublicTokenExchange({ public_token: token });
+      const response = await exchangePublicToken({ public_token: token });
       const accessToken = response.data.access_token;
-      console.log(`Access Token: ${accessToken}`);
+      const itemId = response.data.item_id;
+      console.log(`Access Token: ${accessToken} handleSessionFinishedWebhook`);
+      console.log(`Item ID: ${itemId} handleSessionFinishedWebhook`);
     }
     return { success: true, message: 'Session processed successfully.' };
   } else {
@@ -28,9 +32,9 @@ export const handleItemAddResultWebhook = async (webhookData) => {
   console.log(`Public Token: ${public_token}`);
 
   // Логика обработки токена, например, обмен на access_token
-  const response = await plaidClient.itemPublicTokenExchange({ public_token });
+  const response = await exchangePublicToken(public_token);
   const accessToken = response.data.access_token;
-  console.log(`Access Token: ${accessToken}`);
+  console.log(`Access Token: ${accessToken} handleItemAddResultWebhook`);
 
   return { success: true, message: 'Item add result processed successfully.' };
 };

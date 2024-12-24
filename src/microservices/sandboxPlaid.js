@@ -1,12 +1,44 @@
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 
+import { cuttingISO } from '../constants/authConstants.js';
+
 import { env } from '../utils/env.js';
 
-export const createLinkToken = async (data) => {
+export const createUserToken = async (userCredentials) => {
+  const request = {
+    client_user_id: userCredentials[0]._id,
+    consumer_report_user_identity: {
+      first_name: userCredentials[0].firstName,
+      last_name: userCredentials[0].lastName,
+      phone_numbers: [`+${userCredentials[0].phoneNumber}`],
+      emails: [`${userCredentials[0].email}`],
+      ssn_last_4: userCredentials[0].ssn,
+      date_of_birth: cuttingISO(userCredentials[0].dateOfBirth),
+      primary_address: {
+        city: userCredentials[0].address.city,
+        region: userCredentials[0].address.state,
+        street: userCredentials[0].address.street,
+        postal_code: userCredentials[0].address.postCode,
+        country: 'US',
+      },
+    },
+  };
+
+  try {
+    const response = await plaidClient.userCreate(request);
+    console.log(response.data);
+
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export const createLinkToken = async (user) => {
   const request = {
     user: {
-      client_user_id: 'user-id',
-      phone_number: '+1 415 5550123',
+      client_user_id: user._id,
+      phone_number: `+${user.phoneNumber}`,
     },
     client_name: 'Personal Finance App',
     products: ['auth', 'transactions'],
@@ -39,15 +71,19 @@ export const createLinkToken = async (data) => {
   return linkToken;
 };
 
-// export const createPublicTokenSandbox = async (linkToken) => {
-//   try {
-//     const token = await plaidClient.itemPublicTokenExchange({ link_token: linkToken });
-//     const publicToken = token.data.public_token;
-//     return publicToken;
-//   } catch (error) {
-//     console.log(error);
-//   }
-// };
+export const getLinkToken = async (token) => {
+  if (!token) return;
+
+  const request = {
+    link_token: token,
+  };
+
+  const response = await plaidClient.linkTokenGet(request);
+  // const linkToken = response.config.data.user;
+
+  console.log('FROM getLinkToken', response);
+  return response;
+};
 
 export const exchangePublicToken = async (publicToken) => {
   const request = {
@@ -55,17 +91,19 @@ export const exchangePublicToken = async (publicToken) => {
   };
 
   try {
-    const exchange = await plaidClient.itemPublicTokenExchange(request);
-    const accessToken = exchange.data.access_token;
-    const itemId = exchange.data.item_id;
+    const response = await plaidClient.itemPublicTokenExchange(request);
+    // const accessToken = exchange.data.access_token;
+    // const itemId = exchange.data.item_id;
 
-    console.log('Access Token:', accessToken);
-    console.log('Item ID:', itemId);
+    // console.log('Access Token:', accessToken);
+    // console.log('Item ID:', itemId);
 
-    return {
-      plaidAccessToken: accessToken,
-      plaidItemId: itemId,
-    };
+    // return {
+    //   plaidAccessToken: accessToken,
+    //   plaidItemId: itemId,
+    // };
+
+    return response;
   } catch (error) {
     console.log(error);
   }

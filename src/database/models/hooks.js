@@ -1,4 +1,5 @@
 import { hashPassword } from '../../utils/hash.js';
+import { formatDate } from '../../constants/authConstants.js';
 
 export const mongooseSaveError = (error, data, next) => {
   const { name, code } = error;
@@ -27,3 +28,14 @@ export function displayField(schema, fieldsToOmit = []) {
     return user;
   };
 }
+
+export const dataFormatter = async function (next) {
+  try {
+    if (this.isModified('dateOfBirth')) {
+      this.dateOfBirth = formatDate(this.dateOfBirth); // Форматируем дату перед сохранением
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

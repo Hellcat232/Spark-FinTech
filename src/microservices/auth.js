@@ -8,6 +8,8 @@ import { UserRegisterCollection } from '../database/models/userModel.js';
 import { createSession, deleteSession, findSession } from './session.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 
+import { createUserToken } from './sandboxPlaid.js';
+
 import { sendEmail } from '../utils/sendEmail.js';
 
 // import {linkTokenCreator,createPublicToken,exchangePublicToken} from './productionPlaid.js'; /*PRODUCTION*/
@@ -30,6 +32,8 @@ export const signUp = async (body) => {
     }
 
     const registerUser = await UserRegisterCollection.create([body], { session });
+
+    await createUserToken(registerUser);
 
     const newSession = await createSession({ userId: registerUser[0]._id }, session);
 

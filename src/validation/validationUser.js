@@ -5,6 +5,8 @@ import {
   phoneNumberRegExp,
   stateRegExp,
   postCodeRegExp,
+  ssnRegExp,
+  birthdayValidFormat,
 } from '../constants/authConstants.js';
 
 export const validationSignUp = Joi.object({
@@ -35,11 +37,19 @@ export const validationSignUp = Joi.object({
   }),
   dateOfBirth: Joi.date()
     .less(new Date(Date.now() - 568025136000)) // At least 18 years old (18 * 365.25 * 24 * 60 * 60 * 1000 ms)
+    .iso()
     .required()
     .messages({
       'date.base': 'Date of birth must be a valid date.',
       'date.less': 'User must be at least 18 years old.',
+      'date.iso': 'Please enter a valid date format "yyyy-mm-dd".',
     }),
+  ssn: Joi.string().trim().min(4).max(4).pattern(ssnRegExp).required().messages({
+    'string.empty': 'SSN is required.',
+    'string.min': 'SSN must be a valid 4 digits.',
+    'string.max': 'SSN must be a valid 4 digits.',
+    'string.pattern.base': 'SSN must consist of exactly 4 digits.',
+  }),
   address: Joi.object({
     street: Joi.string().trim().required().messages({
       'string.empty': 'Street address is required.',

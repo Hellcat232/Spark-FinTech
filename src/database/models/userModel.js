@@ -1,13 +1,15 @@
 import { Schema, model } from 'mongoose';
 
-import { mongooseSaveError, encryptPassword, displayField } from './hooks.js';
+import { mongooseSaveError, encryptPassword, displayField, dataFormatter } from './hooks.js';
 
 import {
   emailRegExp,
   phoneNumberRegExp,
   postCodeRegExp,
   stateRegExp,
+  birthdayValidFormat,
   dateOfBirthValidation,
+  ssnRegExp,
 } from '../../constants/authConstants.js';
 
 const userSchema = new Schema(
@@ -50,10 +52,19 @@ const userSchema = new Schema(
     dateOfBirth: {
       type: Date,
       required: [true, 'Date of birth is required.'],
+      match: birthdayValidFormat,
       validate: {
         validator: dateOfBirthValidation,
         message: 'User must be at least 18 years old.',
       },
+    },
+    ssn: {
+      type: String,
+      trim: true,
+      match: ssnRegExp,
+      required: [true, "The last 4 digits of the user's social security number."],
+      minlength: [4, 'Must be at least 4 characters long.'],
+      maxlength: [4, 'Must be less than 4 characters.'],
     },
     address: {
       street: {
@@ -86,6 +97,7 @@ const userSchema = new Schema(
 );
 
 userSchema.pre('save', encryptPassword);
+// userSchema.pre('save', dataFormatter);
 userSchema.post('save', mongooseSaveError);
 displayField(userSchema, ['password', 'plaidAccessToken', 'plaidItemId']);
 

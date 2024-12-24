@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import createHttpError from 'http-errors';
 
-import { createLinkToken, exchangePublicToken } from '../microservices/sandboxPlaid.js';
+import { createLinkToken, getLinkToken } from '../microservices/sandboxPlaid.js';
 
 import { env } from '../utils/env.js';
 import { sendEmail } from '../utils/sendEmail.js';
@@ -12,7 +12,7 @@ import {
   handleSessionFinishedWebhook,
   handleItemAddResultWebhook,
   handleEventsWebhook,
-} from '../utils/webhooks.js';
+} from '../webhooks/linkTypeWebhooks.js';
 
 export const getLinkTokenController = async (req, res) => {
   const { accessToken } = req.body;
@@ -27,8 +27,7 @@ export const getLinkTokenController = async (req, res) => {
     throw createHttpError(404, 'User not found!');
   }
 
-  const linkToken = await createLinkToken();
-  console.log(linkToken);
+  const linkToken = await createLinkToken(user);
 
   await sendEmail(user, linkToken);
 
@@ -41,7 +40,10 @@ export const getLinkTokenController = async (req, res) => {
 export const webhookController = async (req, res) => {
   try {
     // Получаем данные из тела запроса
-    const { webhook_type, webhook_code } = req.body;
+    const { webhook_type, webhook_code, link_token } = req.body;
+
+    const user = await getLinkToken(link_token);
+    console.log(user);
 
     if (!webhook_type || !webhook_code) {
       return res.status(400).json({
