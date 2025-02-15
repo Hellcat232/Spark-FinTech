@@ -6,18 +6,8 @@ import { compareHash } from '../utils/hash.js';
 import { env } from '../utils/env.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
 import { createSession, deleteSession, findSession } from './session.js';
-import { plaidClient } from '../thirdAPI/initPlaid.js';
-
-import { createUserToken } from './sandboxPlaid.js';
 
 import { sendEmail } from '../utils/sendEmail.js';
-
-// import {linkTokenCreator,createPublicToken,exchangePublicToken} from './productionPlaid.js'; /*PRODUCTION*/
-// import {
-//   createPublicTokenSandbox,
-//   exchangePublicTokenSandbox,
-//   createHostedLink,
-// } from './sandboxPlaid.js'; /*SANDBOX*/
 
 export const signUp = async (body) => {
   const session = await mongoose.startSession();
@@ -33,27 +23,7 @@ export const signUp = async (body) => {
 
     const registerUser = await UserRegisterCollection.create([body], { session });
 
-    await createUserToken(registerUser);
-
     const newSession = await createSession({ userId: registerUser[0]._id }, session);
-
-    // const request = {
-    //   institution_id: 'ins_1',
-    //   initial_products: ['auth'],
-    // };
-
-    // const linkToken = await createHostedLink(registerUser[0]._id);
-    // console.log(linkToken);
-
-    // const publicToken = await createPublicTokenSandbox(request);
-
-    // const { plaidAccessToken, plaidItemId } = await exchangePublicTokenSandbox(publicToken);
-
-    // await UserRegisterCollection.findByIdAndUpdate(
-    //   registerUser[0]._id,
-    //   { plaidAccessToken, plaidItemId },
-    //   { session },
-    // );
 
     await session.commitTransaction();
     return { registerUser, newSession };

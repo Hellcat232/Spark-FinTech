@@ -9,19 +9,26 @@ import errorHandle from './middleware/errorHandle.js';
 
 import authRoute from './routes/auth-route.js';
 import plaidRoute from './routes/plaid-route.js';
+import webhooksRoute from './routes/webhooks-route.js';
 
 const PORT = env('PORT');
 
 const server = () => {
   const app = express();
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin: 'http://localhost:5173',
+      credentials: true,
+    }),
+  );
   app.use(express.json());
   app.use(cookieParser());
-  // app.use(bodyParser.json());
+  app.use(bodyParser.json());
 
   app.use('/api/auth', authRoute);
   app.use('/api/plaid', plaidRoute);
+  app.use('/api/webhook', webhooksRoute);
 
   app.use('*', notFoundHandler);
 

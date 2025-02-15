@@ -18,6 +18,7 @@ const userSchema = new Schema(
       type: String,
       required: [true, 'First name is required.'],
       trim: true,
+      lowercase: true,
       minlength: [2, 'First name must be at least 2 characters long.'],
       maxlength: [50, 'First name must be less than 50 characters.'],
     },
@@ -25,6 +26,7 @@ const userSchema = new Schema(
       type: String,
       required: [true, 'Last name is required.'],
       trim: true,
+      lowercase: true,
       minlength: [2, 'Last name must be at least 2 characters long.'],
       maxlength: [50, 'Last name must be less than 50 characters.'],
     },
@@ -89,6 +91,13 @@ const userSchema = new Schema(
         match: [postCodeRegExp, 'Please enter a valid US postal code.'],
       },
     },
+    userPlaidCredentials: {
+      userId: { type: String, required: false },
+      userToken: { type: String, required: false },
+      requestId: { type: String, required: false },
+    },
+    reportAssetsToken: { type: String, required: false },
+    reportAssetsId: { type: String, required: false },
     plaidAccessToken: { type: String, required: false },
     plaidItemId: { type: String, required: false },
   },
@@ -99,6 +108,13 @@ const userSchema = new Schema(
 userSchema.pre('save', encryptPassword);
 // userSchema.pre('save', dataFormatter);
 userSchema.post('save', mongooseSaveError);
-displayField(userSchema, ['password', 'plaidAccessToken', 'plaidItemId']);
+displayField(userSchema, [
+  'password',
+  'plaidAccessToken',
+  'plaidItemId',
+  'userPlaidCredentials',
+  'reportAssetsToken',
+  'reportAssetsId',
+]);
 
 export const UserRegisterCollection = model('user', userSchema);

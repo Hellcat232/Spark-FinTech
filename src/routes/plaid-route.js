@@ -1,34 +1,40 @@
 import express from 'express';
 
-import { getLinkTokenController, webhookController } from '../controllers/plaid-controllers.js';
+import {
+  linkTokenCreateController,
+  exchangePublicTokenController,
+  getUserBalanceController,
+  getUserTransactionController,
+  getAllUserBankAccountsController,
+  disconnectAccountController,
+  getUserIdentityController,
+  getUsersAssetsController,
+  fetchAssetReportController,
+  getUserLiabilitiesController,
+} from '../controllers/plaid-controller.js';
 
 const plaidRoute = express.Router();
 
-plaidRoute.post('/linkToken', getLinkTokenController);
+plaidRoute.post('/linkToken', linkTokenCreateController);
 
-plaidRoute.post('/webhook', webhookController);
+plaidRoute.post('/publicToken', exchangePublicTokenController);
 
-plaidRoute.post('/oauth-complete', async (req, res) => {
-  const event = req.body;
-  // console.log('from /api/plaid/oauth-complete', req);
+plaidRoute.get('/balances', getUserBalanceController);
 
-  if (event.webhook_code === 'TRANSACTIONS_UPDATED') {
-    // Обработайте обновление транзакций
-    console.log('Transactions updated:', event);
-  } else if (event.webhook_code === 'ITEM_ERROR') {
-    // Обработайте ошибку элемента
-    console.error('Item error:', event);
-  }
+plaidRoute.get('/transactions', getUserTransactionController);
 
-  res.status(200).json({
-    message: 'complete oauth',
-    data: {
-      token: req.params,
-      token2: req.query,
-      token3: req.headers,
-      token4: req.body,
-    },
-  });
-});
+plaidRoute.get('/accounts', getAllUserBankAccountsController);
+
+plaidRoute.get('/identity', getUserIdentityController);
+
+// plaidRoute.get('/income', getUsersIncomeController);
+
+plaidRoute.get('/liabilities', getUserLiabilitiesController);
+
+plaidRoute.post('/assets', getUsersAssetsController);
+
+plaidRoute.get('/report', fetchAssetReportController);
+
+plaidRoute.post('/unlink', disconnectAccountController);
 
 export default plaidRoute;

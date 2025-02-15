@@ -58,8 +58,8 @@ export const logOutController = async (req, res) => {
 
   await logOut(sessionId, refreshToken);
 
-  res.clearCookie('sessionId');
-  res.clearCookie('refreshToken');
+  res.clearCookie('sessionId', { httpOnly: true, sameSite: 'Lax' });
+  res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'Lax' });
 
   res.status(204).send();
 };

@@ -13,7 +13,7 @@ const configuration = new Configuration({
       'Plaid-Version': '2020-09-14',
     },
     // products: [Products.Auth, Products.Transactions],
-    products: [Products.Auth, Products.Transactions, Products.Balance],
+    products: [Products.Auth, Products.Identity, Products.Transactions, Products.Balance],
   },
 });
 
