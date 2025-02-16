@@ -13,7 +13,7 @@ import webhooksRoute from './routes/webhooks-route.js';
 
 const PORT = env('PORT');
 
-const server = () => {
+const app = () => {
   const app = express();
 
   app.use(
@@ -39,4 +39,4 @@ const server = () => {
   });
 };
 
-export default server;
+export default app;
