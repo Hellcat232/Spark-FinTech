@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "lint": "eslint src/**/*.js",
-    "start": "node ./src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node app.js",
+    "dev": "nodemon app.js",
     "worker": "nodemon src/worker.js"
   },
   "keywords": [],
