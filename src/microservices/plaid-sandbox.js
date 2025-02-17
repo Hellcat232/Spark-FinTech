@@ -4,6 +4,7 @@ import { UserRegisterCollection } from '../database/models/userModel.js';
 import { env } from '../utils/env.js';
 import { findUser } from './auth.js';
 
+/*=============Создаём LinkToken для отправки на FrontEnd=====================*/
 export const linkTokenCreate = async (userCredentials) => {
   try {
     const request = {
@@ -15,7 +16,7 @@ export const linkTokenCreate = async (userCredentials) => {
       products: ['auth', 'transactions', 'liabilities', 'assets', 'identity'],
       country_codes: ['US'],
       language: 'en',
-      // webhook: 'https://your-webhook-url.com',
+      webhook: env('WEBHOOK_URL'),
       redirect_uri: 'http://localhost:5173/balance',
     };
 
@@ -28,6 +29,7 @@ export const linkTokenCreate = async (userCredentials) => {
   }
 };
 
+/*===========Тут обмениваем PublicToken на AccessToken==========*/
 export const exchangePublicToken = async (publicToken) => {
   try {
     const response = await plaidClient.itemPublicTokenExchange({ public_token: publicToken });
@@ -40,6 +42,7 @@ export const exchangePublicToken = async (publicToken) => {
   }
 };
 
+/*============Получаем баланс с каждого счёта в банке===========*/
 export const getUserBalance = async (user) => {
   try {
     const minLastUpdatedDatetime = new Date();
@@ -62,17 +65,19 @@ export const getUserBalance = async (user) => {
   }
 };
 
+/*============Получаем Transaction со всех счетов пользователя в подключеном банке===========*/
 export const getUserTransaction = async (user) => {
   try {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30);
     const endDate = new Date();
 
-    const response = await plaidClient.transactionsGet({
+    const response = await plaidClient.transactionsSync({
       access_token: user.plaidAccessToken,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-      options: { count: 50, offset: 0 }, // Ограничение на количество записей
+
+      // start_date: startDate.toISOString().split('T')[0],
+      // end_date: endDate.toISOString().split('T')[0],
+      // options: { count: 50, offset: 0 },
     });
 
     return response;
@@ -81,6 +86,7 @@ export const getUserTransaction = async (user) => {
   }
 };
 
+/*===================Получаем все счета пользователя в подключеном банке===========*/
 export const getAllUserBankAccounts = async (user) => {
   try {
     const response = await plaidClient.accountsGet({
@@ -93,6 +99,7 @@ export const getAllUserBankAccounts = async (user) => {
   }
 };
 
+/*============================Получаем данные о владельце счетов для (KYC) авторизации============*/
 export const getUserIdentity = async (user) => {
   try {
     const response = await plaidClient.identityGet({
@@ -118,6 +125,7 @@ export const getUserIdentity = async (user) => {
 //   }
 // };
 
+/*=================Получаем данные по ипотекам и кредитам для счетов пользователя в банке(где приминимо)==========*/
 export const getUserLiabilities = async (user) => {
   try {
     const response = await plaidClient.liabilitiesGet({
@@ -130,6 +138,7 @@ export const getUserLiabilities = async (user) => {
   }
 };
 
+/*=============Создания отчёта о финансовом здоровье пользователя================*/
 export const getUsersAssets = async (user) => {
   try {
     const createReport = await plaidClient.assetReportCreate({
@@ -165,8 +174,9 @@ export const getUsersAssets = async (user) => {
   }
 };
 
+/*=============Получение отчёта о финансовом здоровье пользователя================*/
 export const fetchAssetReport = async (user) => {
-  console.log(user, 'FROM fetchAssetReport');
+  // console.log(user, 'FROM fetchAssetReport');
 
   try {
     if (!user) {

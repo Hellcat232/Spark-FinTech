@@ -20,7 +20,7 @@ import {
   disconnectAccount,
 } from '../microservices/plaid-sandbox.js';
 
-/*Get accessToken from front-end, and create a link token with user's credentials*/
+/*================Отправляем LinkToken на FrontEnd для обмена на PublicToken==========================*/
 export const linkTokenCreateController = async (req, res) => {
   const { accessToken } = req.body;
 
@@ -39,7 +39,7 @@ export const linkTokenCreateController = async (req, res) => {
   res.status(200).json({ link_token: response.link_token });
 };
 
-/*Exchange a link token on public token*/
+/*====Получаем PublicToken с FrontEnd для обмена на AccessToken и записываем AccessToken и ItemId в базу==============*/
 export const exchangePublicTokenController = async (req, res) => {
   const { publicToken, accessToken } = req.body;
 
@@ -73,7 +73,7 @@ export const exchangePublicTokenController = async (req, res) => {
   res.json({ success: true });
 };
 
-/*Below getting info about balance within user's accounts*/
+/*===================Отправляем данные о балансе на FrontEnd==================*/
 export const getUserBalanceController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -101,7 +101,7 @@ export const getUserBalanceController = async (req, res) => {
   });
 };
 
-/*Below getting data about all user's transactions from every account*/
+/*====================Отправляем данные о Transaction пользователя на FrontEnd============*/
 export const getUserTransactionController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -121,12 +121,12 @@ export const getUserTransactionController = async (req, res) => {
 
   res.status(200).json({
     success: true,
-    userTransaction: response.data.transactions,
-    institutionName: response.data.item,
+    userTransaction: response.data,
+    institutionName: response.data,
   });
 };
 
-/*Get all user's bank account below*/
+/*============Отправляем на FrontEnd данные о всех счетах пользователя в подключеном банке=========*/
 export const getAllUserBankAccountsController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -151,7 +151,7 @@ export const getAllUserBankAccountsController = async (req, res) => {
   });
 };
 
-/*Get below user identity(KYC)*/
+/*==============Отправляем на FrontEnd данные о владельце счетов для (KYC) авторизации=======*/
 export const getUserIdentityController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -197,6 +197,7 @@ export const getUserIdentityController = async (req, res) => {
 //   });
 // };
 
+/*=================Отправляем на FrontEnd данные по ипотекам и кредитам для счетов пользователя в банке(где приминимо)==========*/
 export const getUserLiabilitiesController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -220,7 +221,7 @@ export const getUserLiabilitiesController = async (req, res) => {
   });
 };
 
-/*Create request to assets report below*/
+/*=============Инициализация создания отчёта о финансовом здоровье пользователя на FrontEnd-е ================*/
 export const getUsersAssetsController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
@@ -245,7 +246,7 @@ export const getUsersAssetsController = async (req, res) => {
   });
 };
 
-/*Send to front-end getting report*/
+/*=============Отправляем созданый отчёт о финансовом здоровье пользователя на FrontEnd================*/
 export const fetchAssetReportController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
