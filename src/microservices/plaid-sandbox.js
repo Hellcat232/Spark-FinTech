@@ -176,8 +176,6 @@ export const getUsersAssets = async (user) => {
 
 /*=============Получение отчёта о финансовом здоровье пользователя================*/
 export const fetchAssetReport = async (user) => {
-  // console.log(user, 'FROM fetchAssetReport');
-
   try {
     if (!user) {
       throw createHttpError(

@@ -122,7 +122,6 @@ export const getUserTransactionController = async (req, res) => {
   res.status(200).json({
     success: true,
     userTransaction: response.data,
-    institutionName: response.data,
   });
 };
 
