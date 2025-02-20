@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import createHttpError from 'http-errors';
 
 import { UserRegisterCollection } from '../database/models/userModel.js';
+import { TransferCollection } from '../database/models/transfersModel.js';
 
 import { env } from '../utils/env.js';
 
@@ -17,6 +18,8 @@ import {
   getUserLiabilities,
   getUsersAssets,
   fetchAssetReport,
+  authorizeAndCreateTransfer,
+  cancelTransfer,
   disconnectAccount,
 } from '../microservices/plaid-sandbox.js';
 
@@ -71,6 +74,61 @@ export const exchangePublicTokenController = async (req, res) => {
   );
 
   res.json({ success: true });
+};
+
+/*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
+export const createTransferController = async (req, res) => {
+  const { refreshToken } = req.cookies;
+  const { amount, destinationAccount, accountsId, legalName } = req.body;
+  // console.log(req.body);
+
+  const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
+  if (!decode) {
+    throw createHttpError(401, 'Token invalid!');
+  }
+
+  const user = await findUser({ _id: decode.userId });
+  if (!user) {
+    throw createHttpError(404, 'User not found!');
+  } else if (!user.plaidAccessToken) {
+    throw createHttpError(400, 'Plaid not connected');
+  }
+
+  const transfer = await authorizeAndCreateTransfer(user, amount, accountsId, legalName);
+  if (transfer) {
+    await TransferCollection.create({
+      userId: user._id,
+      transferId: transfer.id,
+      amount: transfer.amount,
+      status: transfer.status,
+      type: transfer.type,
+      accauntId: transfer.account_id,
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Перевод успешно создан!',
+    transfer,
+  });
+};
+
+export const cancelTransferController = async (req, res) => {
+  const { transferId } = req.body;
+
+  const findTransfer = await TransferCollection.findOne({ transferId });
+  if (!findTransfer) {
+    throw createHttpError(404, 'Трансфер не найден');
+  }
+
+  await cancelTransfer(transferId);
+
+  await TransferCollection.findOneAndDelete({ transferId });
+
+  res.status(200).json({
+    success: true,
+    message: 'Transfer was cancelled',
+  });
 };
 
 /*===================Отправляем данные о балансе на FrontEnd==================*/

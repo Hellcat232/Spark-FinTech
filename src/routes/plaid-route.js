@@ -10,6 +10,8 @@ import {
   getUserIdentityController,
   getUsersAssetsController,
   fetchAssetReportController,
+  createTransferController,
+  cancelTransferController,
   getUserLiabilitiesController,
 } from '../controllers/plaid-controller.js';
 
@@ -21,7 +23,11 @@ plaidRoute.post('/publicToken', exchangePublicTokenController);
 
 plaidRoute.get('/balances', getUserBalanceController);
 
-plaidRoute.get('/transactions', getUserTransactionController);
+plaidRoute.get('/transactions/history', getUserTransactionController);
+
+plaidRoute.post('/transaction/init', createTransferController);
+
+plaidRoute.post('/transaction/cancel', cancelTransferController);
 
 plaidRoute.get('/accounts', getAllUserBankAccountsController);
 

@@ -5,6 +5,8 @@ import { WebhookQueue } from '../database/models/webhooksModel.js';
 import { findUser } from '../microservices/auth.js';
 
 export const webhookController = async (req, res) => {
+  console.log(req.body);
+
   try {
     const user = await findUser({ reportAssetsId: req.body.asset_report_id });
     if (!user) {

@@ -15,10 +15,18 @@ const processWebhooks = async () => {
 
         case 'TRANSACTIONS':
           // await processTransactionUpdate(webhook.payload);
+          console.log(webhook);
+
           break;
 
         case 'IDENTITY':
           // await processIdentityUpdate(webhook.payload);
+          console.log(webhook);
+          break;
+
+        case 'TRANSFER':
+          // await processIdentityUpdate(webhook.payload);
+          console.log(webhook);
           break;
 
         default:

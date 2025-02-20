@@ -12,6 +12,8 @@ export const linkTokenCreate = async (userCredentials) => {
         client_user_id: userCredentials._id,
       },
 
+      // auth: { auth_type_select_enabled: true },
+
       client_name: 'My FinTech App',
       products: ['auth', 'transactions', 'liabilities', 'assets', 'identity'],
       country_codes: ['US'],
@@ -39,6 +41,62 @@ export const exchangePublicToken = async (publicToken) => {
     return { accessToken, itemId };
   } catch (error) {
     console.log('Ошибка обмена токена:', error.response?.data || error.message);
+  }
+};
+
+/*==========================Создаем авторизацию трансфера и получаем разрешение=================*/
+export const authorizeAndCreateTransfer = async (user, amount, accountId, legalName) => {
+  try {
+    // 1. Авторизация перевода
+    const authResponse = await plaidClient.transferAuthorizationCreate({
+      access_token: user.plaidAccessToken,
+      account_id: accountId,
+      amount: amount, // Сумма в строковом формате
+      network: 'ach', // Используем ACH
+      type: 'debit',
+      ach_class: 'ppd', // PPD - личные платежи (можно использовать ccd)
+      user: {
+        legal_name: legalName,
+        email_address: user.email,
+      },
+    });
+
+    // Проверяем, разрешён ли перевод
+    if (
+      !authResponse.data.authorization.decision ||
+      authResponse.data.authorization.decision !== 'approved'
+    ) {
+      throw new Error('Перевод не одобрен Plaid');
+    }
+
+    // 2. Создание перевода после успешной авторизации
+    const transferResponse = await plaidClient.transferCreate({
+      access_token: user.plaidAccessToken,
+      authorization_id: authResponse.data.authorization.id, // Берём ID авторизации
+      account_id: accountId,
+      amount: amount,
+      description: 'payment',
+    });
+
+    return transferResponse.data.transfer;
+  } catch (error) {
+    console.error(
+      'Ошибка при авторизации и создании перевода:',
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/*=============================Отмена трансфера========================*/
+export const cancelTransfer = async (transferId) => {
+  try {
+    const response = await plaidClient.transferCancel({ transfer_id: transferId });
+
+    return response.data.request_id;
+  } catch (error) {
+    console.error('Ошибка при отмене трансфера', error.response?.data || error.message);
+    throw error;
   }
 };
 
