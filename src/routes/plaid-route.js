@@ -23,11 +23,11 @@ plaidRoute.post('/publicToken', exchangePublicTokenController);
 
 plaidRoute.get('/balances', getUserBalanceController);
 
-plaidRoute.get('/transactions/history', getUserTransactionController);
+plaidRoute.get('/transactions', getUserTransactionController);
 
-plaidRoute.post('/transaction/init', createTransferController);
+plaidRoute.post('/transfer_init', createTransferController);
 
-plaidRoute.post('/transaction/cancel', cancelTransferController);
+plaidRoute.post('/transfer_cancel', cancelTransferController);
 
 plaidRoute.get('/accounts', getAllUserBankAccountsController);
 

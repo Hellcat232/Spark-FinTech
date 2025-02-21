@@ -1,6 +1,7 @@
 import createHttpError from 'http-errors';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
+import { EventsTransferCollection } from '../database/models/eventsTransferModel.js';
 import { env } from '../utils/env.js';
 import { findUser } from './auth.js';
 
@@ -15,7 +16,7 @@ export const linkTokenCreate = async (userCredentials) => {
       // auth: { auth_type_select_enabled: true },
 
       client_name: 'My FinTech App',
-      products: ['auth', 'transactions', 'liabilities', 'assets', 'identity'],
+      products: ['auth', 'transactions', 'liabilities', 'assets', 'identity', 'transfer'],
       country_codes: ['US'],
       language: 'en',
       webhook: env('WEBHOOK_URL'),
@@ -66,7 +67,7 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
       !authResponse.data.authorization.decision ||
       authResponse.data.authorization.decision !== 'approved'
     ) {
-      throw new Error('Перевод не одобрен Plaid');
+      throw createHttpError(409, 'Перевод не одобрен Plaid');
     }
 
     // 2. Создание перевода после успешной авторизации
@@ -77,6 +78,31 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
       amount: amount,
       description: 'payment',
     });
+
+    let lastEventId;
+    const transferEventSync = await plaidClient.transferEventSync({
+      after_id: lastEventId || 0,
+      // count: 0,
+    });
+    if (transferEventSync.data.transfer_events.length > 0) {
+      lastEventId = transferEventSync.data.transfer_events.at(0).event_id;
+      await EventsTransferCollection.create({
+        userId: user._id,
+        eventId: transferEventSync.data.transfer_events.at(0).event_id,
+        eventType: transferEventSync.data.transfer_events.at(0).event_type,
+        accountId: transferEventSync.data.transfer_events.at(0).account_id,
+        transferAmount: transferEventSync.data.transfer_events.at(0).transfer_amount,
+        transferId: transferEventSync.data.transfer_events.at(0).transfer_id,
+        transferType: transferEventSync.data.transfer_events.at(0).transfer_type,
+        timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
+      });
+    }
+
+    // console.log(transferEventSync.data, 'transferEventSync');
+
+    // await plaidClient.sandboxTransferFireWebhook({
+    //   webhook: env('WEBHOOK_URL'),
+    // });
 
     return transferResponse.data.transfer;
   } catch (error) {
@@ -89,9 +115,27 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
 };
 
 /*=============================Отмена трансфера========================*/
-export const cancelTransfer = async (transferId) => {
+export const cancelTransfer = async (transferId, findTransfer) => {
   try {
     const response = await plaidClient.transferCancel({ transfer_id: transferId });
+
+    const transferEventSync = await plaidClient.transferEventSync({
+      after_id: 0,
+      // count: 5,
+    });
+    if (transferEventSync.data.transfer_events.length > 0) {
+      await EventsTransferCollection.create({
+        userId: findTransfer.userId,
+        eventId: transferEventSync.data.transfer_events.at(0).event_id,
+        eventType: transferEventSync.data.transfer_events.at(0).event_type,
+        accountId: transferEventSync.data.transfer_events.at(0).account_id,
+        transferAmount: transferEventSync.data.transfer_events.at(0).transfer_amount,
+        transferId: transferEventSync.data.transfer_events.at(0).transfer_id,
+        transferType: transferEventSync.data.transfer_events.at(0).transfer_type,
+        timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
+      });
+    }
+    // console.log(transferEventSync.data, 'transferEventSync');
 
     return response.data.request_id;
   } catch (error) {

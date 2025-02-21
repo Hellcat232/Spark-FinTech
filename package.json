@@ -7,7 +7,7 @@
   "scripts": {
     "lint": "eslint src/**/*.js",
     "start": "node server.js",
-    "dev": "nodemon server.js",
+    "dev": "nodemon --inspect=9230 server.js",
     "worker": "nodemon src/worker.js"
   },
   "keywords": [],

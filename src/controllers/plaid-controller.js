@@ -121,7 +121,7 @@ export const cancelTransferController = async (req, res) => {
     throw createHttpError(404, 'Трансфер не найден');
   }
 
-  await cancelTransfer(transferId);
+  await cancelTransfer(transferId, findTransfer);
 
   await TransferCollection.findOneAndDelete({ transferId });
 
