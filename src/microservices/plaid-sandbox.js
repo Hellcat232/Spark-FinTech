@@ -1,7 +1,9 @@
 import createHttpError from 'http-errors';
+import mongoose from 'mongoose';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
 import { EventsTransferCollection } from '../database/models/eventsTransferModel.js';
+import { TransferCollection } from '../database/models/transfersModel.js';
 import { env } from '../utils/env.js';
 import { findUser } from './auth.js';
 
@@ -47,7 +49,11 @@ export const exchangePublicToken = async (publicToken) => {
 
 /*==========================Создаем авторизацию трансфера и получаем разрешение=================*/
 export const authorizeAndCreateTransfer = async (user, amount, accountId, legalName) => {
+  const session = await mongoose.startSession();
+
   try {
+    session.startTransaction();
+
     // 1. Авторизация перевода
     const authResponse = await plaidClient.transferAuthorizationCreate({
       access_token: user.plaidAccessToken,
@@ -79,38 +85,62 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
       description: 'payment',
     });
 
-    let lastEventId;
+    await TransferCollection.create(
+      [
+        {
+          userId: user._id,
+          transferId: transferResponse.data.transfer.id,
+          amount: transferResponse.data.transfer.amount,
+          status: transferResponse.data.transfer.status,
+          type: transferResponse.data.transfer.type,
+          accauntId: transferResponse.data.transfer.account_id,
+        },
+      ],
+      { session },
+    );
+
+    // 3. Получаем последний Event ID из базы
+    let lastEvent = await EventsTransferCollection.findOne().sort({ eventId: -1 }).lean();
+    let lastEventId = lastEvent ? lastEvent.eventId : 0;
+
+    // 4. Синхронизация событий перевода
     const transferEventSync = await plaidClient.transferEventSync({
-      after_id: lastEventId || 0,
-      // count: 0,
+      after_id: lastEventId,
     });
     if (transferEventSync.data.transfer_events.length > 0) {
       lastEventId = transferEventSync.data.transfer_events.at(0).event_id;
-      await EventsTransferCollection.create({
-        userId: user._id,
-        eventId: transferEventSync.data.transfer_events.at(0).event_id,
-        eventType: transferEventSync.data.transfer_events.at(0).event_type,
-        accountId: transferEventSync.data.transfer_events.at(0).account_id,
-        transferAmount: transferEventSync.data.transfer_events.at(0).transfer_amount,
-        transferId: transferEventSync.data.transfer_events.at(0).transfer_id,
-        transferType: transferEventSync.data.transfer_events.at(0).transfer_type,
-        timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
-      });
+      await EventsTransferCollection.create(
+        [
+          {
+            userId: user._id,
+            eventId: transferEventSync.data.transfer_events.at(0).event_id,
+            eventType: transferEventSync.data.transfer_events.at(0).event_type,
+            accountId: transferEventSync.data.transfer_events.at(0).account_id,
+            transferAmount: transferEventSync.data.transfer_events.at(0).transfer_amount,
+            transferId: transferEventSync.data.transfer_events.at(0).transfer_id,
+            transferType: transferEventSync.data.transfer_events.at(0).transfer_type,
+            timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
+          },
+        ],
+        { session },
+      );
     }
 
-    // console.log(transferEventSync.data, 'transferEventSync');
+    await plaidClient.sandboxTransferFireWebhook({
+      webhook: env('WEBHOOK_URL'),
+    });
 
-    // await plaidClient.sandboxTransferFireWebhook({
-    //   webhook: env('WEBHOOK_URL'),
-    // });
-
+    await session.commitTransaction();
     return transferResponse.data.transfer;
   } catch (error) {
     console.error(
       'Ошибка при авторизации и создании перевода:',
       error.response?.data || error.message,
     );
+    await session.abortTransaction();
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
@@ -121,7 +151,6 @@ export const cancelTransfer = async (transferId, findTransfer) => {
 
     const transferEventSync = await plaidClient.transferEventSync({
       after_id: 0,
-      // count: 5,
     });
     if (transferEventSync.data.transfer_events.length > 0) {
       await EventsTransferCollection.create({
@@ -135,7 +164,23 @@ export const cancelTransfer = async (transferId, findTransfer) => {
         timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
       });
     }
+    if (transferEventSync.data.transfer_events.at(0).event_type === 'cancelled') {
+      await TransferCollection.findOneAndUpdate(
+        { transferId: transferEventSync.data.transfer_events.at(0).transfer_id },
+        {
+          $set: {
+            status: 'cancelled',
+          },
+        },
+        { new: true },
+      );
+    }
+
     // console.log(transferEventSync.data, 'transferEventSync');
+
+    await plaidClient.sandboxTransferFireWebhook({
+      webhook: env('WEBHOOK_URL'),
+    });
 
     return response.data.request_id;
   } catch (error) {

@@ -1,5 +1,6 @@
 import { WebhookQueue } from '../database/models/webhooksModel.js';
 import { fetchAssetReport } from './plaid-sandbox.js';
+import { plaidClient } from '../thirdAPI/initPlaid.js';
 
 const processWebhooks = async () => {
   const pendingWebhooks = await WebhookQueue.find({ status: 'pending' });
@@ -25,7 +26,11 @@ const processWebhooks = async () => {
           break;
 
         case 'TRANSFER':
-          // await processIdentityUpdate(webhook.payload);
+          if (webhook.webhook_code === 'TRANSFER_EVENTS_UPDATE') {
+            await plaidClient.transferEventSync({
+              after_id: 0,
+            });
+          }
           console.log(webhook);
           break;
 

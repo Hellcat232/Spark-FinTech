@@ -95,18 +95,8 @@ export const createTransferController = async (req, res) => {
   }
 
   const transfer = await authorizeAndCreateTransfer(user, amount, accountsId, legalName);
-  if (transfer) {
-    await TransferCollection.create({
-      userId: user._id,
-      transferId: transfer.id,
-      amount: transfer.amount,
-      status: transfer.status,
-      type: transfer.type,
-      accauntId: transfer.account_id,
-    });
-  }
 
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
     message: 'Перевод успешно создан!',
     transfer,
@@ -123,7 +113,7 @@ export const cancelTransferController = async (req, res) => {
 
   await cancelTransfer(transferId, findTransfer);
 
-  await TransferCollection.findOneAndDelete({ transferId });
+  // await TransferCollection.findOneAndDelete({ transferId });
 
   res.status(200).json({
     success: true,
