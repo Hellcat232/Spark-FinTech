@@ -1,7 +1,8 @@
+import createHttpError from 'http-errors';
+import { env } from '../utils/env.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 import { TransferCollection } from '../database/models/transfersModel.js';
 import { EventsTransferCollection } from '../database/models/eventsTransferModel.js';
-import createHttpError from 'http-errors';
 
 const Synchronization = async () => {
   try {
@@ -15,7 +16,7 @@ const Synchronization = async () => {
       after_id: lastEventId,
     });
 
-    console.log(transferEventSync.data.transfer_events);
+    // console.log(transferEventSync.data.transfer_events);
 
     if (transferEventSync.data.transfer_events.at(0).event_type === 'posted') {
       await plaidClient.sandboxTransferSimulate({
@@ -53,6 +54,11 @@ const Synchronization = async () => {
         timestamp: event.timestamp,
       });
     }
+
+    //Симулируем Webhook в Sandbox
+    await plaidClient.sandboxTransferFireWebhook({
+      webhook: env('WEBHOOK_URL'),
+    });
   } catch (error) {
     console.error('❌ Ошибка при синхронизации событий перевода:', error.message);
   }

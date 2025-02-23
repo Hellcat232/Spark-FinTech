@@ -1,52 +1,86 @@
 import express from 'express';
+import { ctrlWrapper } from '../utils/ctrlWrapper.js';
+import {
+  createTransferController,
+  cancelTransferController,
+  transferInfoController,
+  transferListController,
+} from '../controllers/plaid-controllers/transfer-controller.js';
 
 import {
   linkTokenCreateController,
   exchangePublicTokenController,
-  getUserBalanceController,
-  getUserTransactionController,
-  getAllUserBankAccountsController,
   disconnectAccountController,
-  getUserIdentityController,
+} from '../controllers/plaid-controllers/connect-bank-controller.js';
+
+import {
+  createRecurringTransferController,
+  cancelRecurringTransferController,
+  getRecurringTransferInfoController,
+  getRecurringTransferListController,
+} from '../controllers/plaid-controllers/recurring-transfer-controller.js';
+
+import {
+  rtpTransferEligibilityController,
+  rtpTransferCreateController,
+  rtpTransferGetInfoController,
+} from '../controllers/plaid-controllers/rtp-transfer-controller.js';
+
+import {
   getUsersAssetsController,
   fetchAssetReportController,
-  createTransferController,
-  cancelTransferController,
-  transferListController,
-  transferInfoController,
-  getUserLiabilitiesController,
-} from '../controllers/plaid-controller.js';
+} from '../controllers/plaid-controllers/assets-controller.js';
+
+import { getUserBalanceController } from '../controllers/plaid-controllers/balance-controller.js';
+import { getUserTransactionController } from '../controllers/plaid-controllers/transaction-controller.js';
+import { getAllUserBankAccountsController } from '../controllers/plaid-controllers/accounts-controller.js';
+import { getUserLiabilitiesController } from '../controllers/plaid-controllers/liabilities-controller.js';
+import { getUserIdentityController } from '../controllers/plaid-controllers/identity-controller.js';
 
 const plaidRoute = express.Router();
 
-plaidRoute.post('/linkToken', linkTokenCreateController);
+plaidRoute.post('/linkToken', ctrlWrapper(linkTokenCreateController));
 
-plaidRoute.post('/publicToken', exchangePublicTokenController);
+plaidRoute.post('/publicToken', ctrlWrapper(exchangePublicTokenController));
 
-plaidRoute.get('/balances', getUserBalanceController);
+plaidRoute.get('/balances', ctrlWrapper(getUserBalanceController));
 
-plaidRoute.get('/transactions', getUserTransactionController);
+plaidRoute.get('/transactions', ctrlWrapper(getUserTransactionController));
 
-plaidRoute.post('/transfer_init', createTransferController);
+plaidRoute.post('/transfer_init', ctrlWrapper(createTransferController));
 
-plaidRoute.post('/transfer_cancel', cancelTransferController);
+plaidRoute.post('/transfer_cancel', ctrlWrapper(cancelTransferController));
 
-plaidRoute.post('/transfer_list/:id', transferInfoController);
+plaidRoute.post('/transfer_list/:id', ctrlWrapper(transferInfoController));
 
-plaidRoute.get('/transfer_list', transferListController);
+plaidRoute.get('/transfer_list', ctrlWrapper(transferListController));
 
-plaidRoute.get('/accounts', getAllUserBankAccountsController);
+plaidRoute.get('/accounts', ctrlWrapper(getAllUserBankAccountsController));
 
-plaidRoute.get('/identity', getUserIdentityController);
+plaidRoute.get('/identity', ctrlWrapper(getUserIdentityController));
+
+plaidRoute.post('/recurring_transfer_create', ctrlWrapper(createRecurringTransferController));
+
+plaidRoute.post('/recurring_transfer_cancel', ctrlWrapper(cancelRecurringTransferController));
+
+plaidRoute.get('recurring_transfer_list', ctrlWrapper(getRecurringTransferListController));
+
+plaidRoute.post('recurring_transfer_list/:id', ctrlWrapper(getRecurringTransferInfoController));
+
+plaidRoute.get('/rtp_eligibility', ctrlWrapper(rtpTransferEligibilityController));
+
+plaidRoute.post('/rtp_create', ctrlWrapper(rtpTransferCreateController));
+
+plaidRoute.post('rtp_info', ctrlWrapper(rtpTransferGetInfoController));
 
 // plaidRoute.get('/income', getUsersIncomeController);
 
-plaidRoute.get('/liabilities', getUserLiabilitiesController);
+plaidRoute.get('/liabilities', ctrlWrapper(getUserLiabilitiesController));
 
-plaidRoute.post('/assets', getUsersAssetsController);
+plaidRoute.post('/assets', ctrlWrapper(getUsersAssetsController));
 
-plaidRoute.get('/report', fetchAssetReportController);
+plaidRoute.get('/report', ctrlWrapper(fetchAssetReportController));
 
-plaidRoute.post('/unlink', disconnectAccountController);
+plaidRoute.post('/unlink', ctrlWrapper(disconnectAccountController));
 
 export default plaidRoute;

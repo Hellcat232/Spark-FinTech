@@ -1,5 +1,5 @@
 import { WebhookQueue } from '../database/models/webhooksModel.js';
-import { fetchAssetReport } from './plaid-sandbox.js';
+import { fetchAssetReport } from './plaid/assets-service.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 import { env } from '../utils/env.js';
 

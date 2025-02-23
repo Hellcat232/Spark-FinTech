@@ -151,12 +151,15 @@ export const cancelTransfer = async (transferId, findTransfer) => {
     const transferEventSync = await plaidClient.transferEventSync({
       after_id: 0,
     });
+
     //Симулируем ивент возврата в Sandbox
-    await plaidClient.sandboxTransferSimulate({
-      transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
-      event_type: 'returned',
-      failure_reason: transferEventSync.data.transfer_events.at(0).failure_reason,
-    });
+    if (transferEventSync.data.transfer_events.at(0).event_type === 'pending') {
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
+        event_type: 'returned',
+        failure_reason: transferEventSync.data.transfer_events.at(0).failure_reason,
+      });
+    }
 
     if (transferEventSync.data.transfer_events.length > 0) {
       await EventsTransferCollection.create({
@@ -170,12 +173,12 @@ export const cancelTransfer = async (transferId, findTransfer) => {
         timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
       });
     }
-    if (transferEventSync.data.transfer_events.at(0).event_type === 'cancelled') {
+    if (transferEventSync.data.transfer_events.at(0).event_type === 'returned') {
       await TransferCollection.findOneAndUpdate(
         { transferId: transferEventSync.data.transfer_events.at(0).transfer_id },
         {
           $set: {
-            status: 'cancelled',
+            status: 'returned',
           },
         },
         { new: true },
