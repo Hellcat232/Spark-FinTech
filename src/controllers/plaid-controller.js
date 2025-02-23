@@ -11,18 +11,24 @@ import { findUser } from '../microservices/auth.js';
 import {
   linkTokenCreate,
   exchangePublicToken,
-  getUserBalance,
-  getUserTransaction,
-  getAllUserBankAccounts,
-  getUserIdentity,
-  getUserLiabilities,
-  getUsersAssets,
-  fetchAssetReport,
-  authorizeAndCreateTransfer,
-  transferListByEvents,
-  cancelTransfer,
   disconnectAccount,
-} from '../microservices/plaid-sandbox.js';
+} from '../microservices/plaid/connect-bank-service.js';
+
+import { getUserBalance } from '../microservices/plaid/balance-service.js';
+import { getUserTransaction } from '../microservices/plaid/transaction-service.js';
+import { getAllUserBankAccounts } from '../microservices/plaid/accounts-service.js';
+import { getUserIdentity } from '../microservices/plaid/identity-service.js';
+import { getUserLiabilities } from '../microservices/plaid/liabilities-service.js';
+
+import { createUsersAssets, fetchAssetReport } from '../microservices/plaid/assets-service.js';
+
+import {
+  authorizeAndCreateTransfer,
+  cancelTransfer,
+  transferListByEvents,
+  transferInfo,
+  transferList,
+} from '../microservices/plaid/transfer-service.js';
 
 /*================Отправляем LinkToken на FrontEnd для обмена на PublicToken==========================*/
 export const linkTokenCreateController = async (req, res) => {
@@ -104,7 +110,31 @@ export const createTransferController = async (req, res) => {
   });
 };
 
-export const transferListByEventsController = async (req, res) => {
+export const transferInfoController = async (req, res) => {
+  const { refreshToken } = req.cookies;
+  const { transferId } = req.body;
+
+  const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
+  if (!decode) {
+    throw createHttpError(401, 'Token invalid!');
+  }
+
+  const user = await findUser({ _id: decode.userId });
+  if (!user) {
+    throw createHttpError(404, 'User not found!');
+  } else if (!user.plaidAccessToken) {
+    throw createHttpError(400, 'Plaid not connected');
+  }
+
+  const aboutTransfer = await transferInfo(transferId);
+
+  res.status(200).json({
+    success: true,
+    aboutTransfer,
+  });
+};
+
+export const transferListController = async (req, res) => {
   const { refreshToken } = req.cookies;
 
   const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
@@ -119,11 +149,11 @@ export const transferListByEventsController = async (req, res) => {
     throw createHttpError(400, 'Plaid not connected');
   }
 
-  const eventList = await transferListByEvents(req.query, user);
+  const transfersList = await transferList(req.query, user);
 
   res.status(200).json({
     success: true,
-    eventList,
+    transfersList,
   });
 };
 
@@ -310,7 +340,7 @@ export const getUsersAssetsController = async (req, res) => {
   }
   // console.log(user, 'getUsersAssetsController');
 
-  await getUsersAssets(user);
+  await createUsersAssets(user);
 
   res.status(200).json({
     success: true,
