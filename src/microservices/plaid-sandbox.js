@@ -107,6 +107,7 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
     const transferEventSync = await plaidClient.transferEventSync({
       after_id: lastEventId,
     });
+
     if (transferEventSync.data.transfer_events.length > 0) {
       lastEventId = transferEventSync.data.transfer_events.at(0).event_id;
       await EventsTransferCollection.create(
@@ -126,6 +127,13 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
       );
     }
 
+    // const simulateSandbox = await plaidClient.sandboxTransferSimulate({
+    //   transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
+    //   event_type: 'posted',
+    //   failure_reason: transferEventSync.data.transfer_events.at(0).failure_reason,
+    // });
+    // console.log(simulateSandbox.data, 'simulateSandbox');
+
     await plaidClient.sandboxTransferFireWebhook({
       webhook: env('WEBHOOK_URL'),
     });
@@ -144,14 +152,47 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
   }
 };
 
+/*===========================Получаем список трансферов по событиям========================*/
+export const transferListByEvents = async (dataFromFrontEnd, user) => {
+  console.log(dataFromFrontEnd.query);
+
+  try {
+    const request = {
+      start_date: '2025-02-19T22:35:49Z',
+      end_date: '2025-02-21T22:35:49Z',
+      // transfer_id: dataFromFrontEnd.query,
+      account_id: 'pGnryBLZ9QCo78Q6nNnJhyjGwjNprphJvXPXa',
+      transfer_type: 'debit',
+      event_types: ['pending', 'posted', 'cancelled'],
+      count: 25,
+      offset: 0,
+      // origination_account_id: '8945fedc-e703-463d-86b1-dc0607b55460',
+    };
+
+    const eventList = await plaidClient.transferEventList(request);
+    return eventList.data;
+  } catch (error) {
+    console.error('Ошибка при отмене трансфера', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 /*=============================Отмена трансфера========================*/
 export const cancelTransfer = async (transferId, findTransfer) => {
   try {
     const response = await plaidClient.transferCancel({ transfer_id: transferId });
-
+    // console.log(response.data);
     const transferEventSync = await plaidClient.transferEventSync({
       after_id: 0,
     });
+
+    const simulateSandbox = await plaidClient.sandboxTransferSimulate({
+      transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
+      event_type: 'failed',
+      failure_reason: transferEventSync.data.transfer_events.at(0).failure_reason,
+    });
+    console.log(simulateSandbox.data, 'simulateSandbox');
+
     if (transferEventSync.data.transfer_events.length > 0) {
       await EventsTransferCollection.create({
         userId: findTransfer.userId,

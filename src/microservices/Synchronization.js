@@ -15,6 +15,16 @@ const Synchronization = async () => {
       after_id: lastEventId,
     });
 
+    console.log(transferEventSync.data.transfer_events);
+
+    if (transferEventSync.data.transfer_events.at(0).event_type === 'posted') {
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
+        event_type: 'settled',
+        failure_reason: transferEventSync.data.transfer_events.at(0).failure_reason,
+      });
+    }
+
     if (!transferEventSync.data.transfer_events.length) {
       console.log('✅ Нет новых событий для обновления.');
       return;

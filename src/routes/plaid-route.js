@@ -12,6 +12,7 @@ import {
   fetchAssetReportController,
   createTransferController,
   cancelTransferController,
+  transferListByEventsController,
   getUserLiabilitiesController,
 } from '../controllers/plaid-controller.js';
 
@@ -28,6 +29,8 @@ plaidRoute.get('/transactions', getUserTransactionController);
 plaidRoute.post('/transfer_init', createTransferController);
 
 plaidRoute.post('/transfer_cancel', cancelTransferController);
+
+plaidRoute.get('/transfer_list', transferListByEventsController);
 
 plaidRoute.get('/accounts', getAllUserBankAccountsController);
 

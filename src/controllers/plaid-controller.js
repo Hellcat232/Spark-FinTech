@@ -19,6 +19,7 @@ import {
   getUsersAssets,
   fetchAssetReport,
   authorizeAndCreateTransfer,
+  transferListByEvents,
   cancelTransfer,
   disconnectAccount,
 } from '../microservices/plaid-sandbox.js';
@@ -103,6 +104,30 @@ export const createTransferController = async (req, res) => {
   });
 };
 
+export const transferListByEventsController = async (req, res) => {
+  const { refreshToken } = req.cookies;
+
+  const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
+  if (!decode) {
+    throw createHttpError(401, 'Token invalid!');
+  }
+
+  const user = await findUser({ _id: decode.userId });
+  if (!user) {
+    throw createHttpError(404, 'User not found!');
+  } else if (!user.plaidAccessToken) {
+    throw createHttpError(400, 'Plaid not connected');
+  }
+
+  const eventList = await transferListByEvents(req.query, user);
+
+  res.status(200).json({
+    success: true,
+    eventList,
+  });
+};
+
+/*========================Отмена трансфера и сообщение для FrontEnd========================*/
 export const cancelTransferController = async (req, res) => {
   const { transferId } = req.body;
 

@@ -1,6 +1,7 @@
 import { WebhookQueue } from '../database/models/webhooksModel.js';
 import { fetchAssetReport } from './plaid-sandbox.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
+import { env } from '../utils/env.js';
 
 const processWebhooks = async () => {
   const pendingWebhooks = await WebhookQueue.find({ status: 'pending' });
@@ -27,9 +28,23 @@ const processWebhooks = async () => {
 
         case 'TRANSFER':
           if (webhook.webhook_code === 'TRANSFER_EVENTS_UPDATE') {
-            await plaidClient.transferEventSync({
+            const sync = await plaidClient.transferEventSync({
               after_id: 0,
             });
+            if (sync.data.transfer_events.at(0).event_type === 'pending') {
+              await plaidClient.sandboxTransferSimulate({
+                transfer_id: sync.data.transfer_events.at(0).transfer_id,
+                event_type: 'posted',
+                failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              });
+            }
+            if (sync.data.transfer_events.at(0).event_type === 'posted') {
+              await plaidClient.sandboxTransferSimulate({
+                transfer_id: sync.data.transfer_events.at(0).transfer_id,
+                event_type: 'settled',
+                failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              });
+            }
           }
           console.log(webhook);
           break;
