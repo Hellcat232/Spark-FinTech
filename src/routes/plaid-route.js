@@ -35,7 +35,12 @@ import { getUserBalanceController } from '../controllers/plaid-controllers/balan
 import { getUserTransactionController } from '../controllers/plaid-controllers/transaction-controller.js';
 import { getAllUserBankAccountsController } from '../controllers/plaid-controllers/accounts-controller.js';
 import { getUserLiabilitiesController } from '../controllers/plaid-controllers/liabilities-controller.js';
-import { getUserIdentityController } from '../controllers/plaid-controllers/identity-controller.js';
+
+import {
+  getUserIdentityController,
+  getIdentityMatchController,
+  identityUploadController,
+} from '../controllers/plaid-controllers/identity-controller.js';
 
 const plaidRoute = express.Router();
 
@@ -58,6 +63,10 @@ plaidRoute.get('/transfer_list', ctrlWrapper(transferListController));
 plaidRoute.get('/accounts', ctrlWrapper(getAllUserBankAccountsController));
 
 plaidRoute.get('/identity', ctrlWrapper(getUserIdentityController));
+
+plaidRoute.get('/identity_match', ctrlWrapper(getIdentityMatchController));
+
+plaidRoute.post('/identity_upload', ctrlWrapper(identityUploadController));
 
 plaidRoute.post('/recurring_transfer_create', ctrlWrapper(createRecurringTransferController));
 

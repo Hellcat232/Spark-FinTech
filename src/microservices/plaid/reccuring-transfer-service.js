@@ -1,5 +1,7 @@
 import { plaidClient } from '../../thirdAPI/initPlaid.js';
 
+/*Использовать для повторяющихся платежей, идеально для оплаты ежемесячных подписок*/
+
 /*==============================Создаем периодический перевод======================*/
 export const createRecurringTransfer = async (data, user) => {
   try {

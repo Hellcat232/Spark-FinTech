@@ -7,6 +7,8 @@ import { env } from '../../utils/env.js';
 import { TransferCollection } from '../../database/models/transfersModel.js';
 import { EventsTransferCollection } from '../../database/models/eventsTransferModel.js';
 
+/*Использовать для платежей, без одобрением через UI*/
+
 /*==========================Создаем авторизацию трансфера и получаем разрешение=================*/
 export const authorizeAndCreateTransfer = async (user, amount, accountId, legalName) => {
   const session = await mongoose.startSession();

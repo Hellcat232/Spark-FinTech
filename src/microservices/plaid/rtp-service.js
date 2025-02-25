@@ -1,5 +1,7 @@
 import { plaidClient } from '../../thirdAPI/initPlaid.js';
 
+/*Использовать для быстрых платежей, с одобрением через UI*/
+
 /*========================Проверяем возможность быстрого перевода для счёта=============*/
 export const rtpTransferEligibility = async (accountId, user) => {
   try {
