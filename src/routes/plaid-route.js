@@ -45,7 +45,6 @@ import {
 const plaidRoute = express.Router();
 
 plaidRoute.post('/linkToken', ctrlWrapper(linkTokenCreateController));
-
 plaidRoute.post('/publicToken', ctrlWrapper(exchangePublicTokenController));
 
 plaidRoute.get('/balances', ctrlWrapper(getUserBalanceController));
@@ -53,33 +52,23 @@ plaidRoute.get('/balances', ctrlWrapper(getUserBalanceController));
 plaidRoute.get('/transactions', ctrlWrapper(getUserTransactionController));
 
 plaidRoute.post('/transfer_init', ctrlWrapper(createTransferController));
-
 plaidRoute.post('/transfer_cancel', ctrlWrapper(cancelTransferController));
-
 plaidRoute.post('/transfer_list/:id', ctrlWrapper(transferInfoController));
-
 plaidRoute.get('/transfer_list', ctrlWrapper(transferListController));
 
 plaidRoute.get('/accounts', ctrlWrapper(getAllUserBankAccountsController));
 
 plaidRoute.get('/identity', ctrlWrapper(getUserIdentityController));
-
 plaidRoute.get('/identity_match', ctrlWrapper(getIdentityMatchController));
-
 plaidRoute.post('/identity_upload', ctrlWrapper(identityUploadController));
 
 plaidRoute.post('/recurring_transfer_create', ctrlWrapper(createRecurringTransferController));
-
 plaidRoute.post('/recurring_transfer_cancel', ctrlWrapper(cancelRecurringTransferController));
-
 plaidRoute.get('recurring_transfer_list', ctrlWrapper(getRecurringTransferListController));
-
 plaidRoute.post('recurring_transfer_list/:id', ctrlWrapper(getRecurringTransferInfoController));
 
 plaidRoute.get('/rtp_eligibility', ctrlWrapper(rtpTransferEligibilityController));
-
 plaidRoute.post('/rtp_create', ctrlWrapper(rtpTransferCreateController));
-
 plaidRoute.post('rtp_info', ctrlWrapper(rtpTransferGetInfoController));
 
 // plaidRoute.get('/income', getUsersIncomeController);
@@ -87,7 +76,6 @@ plaidRoute.post('rtp_info', ctrlWrapper(rtpTransferGetInfoController));
 plaidRoute.get('/liabilities', ctrlWrapper(getUserLiabilitiesController));
 
 plaidRoute.post('/assets', ctrlWrapper(getUsersAssetsController));
-
 plaidRoute.get('/report', ctrlWrapper(fetchAssetReportController));
 
 plaidRoute.post('/unlink', ctrlWrapper(disconnectAccountController));

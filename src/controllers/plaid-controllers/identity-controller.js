@@ -27,9 +27,7 @@ export const getUserIdentityController = async (req, res) => {
 
   const response = await getUserIdentity(user);
 
-  res
-    .status(200)
-    .json({ success: true, identity: response.data.accounts, institutionName: response.data.item });
+  res.status(200).json({ success: true, identity: response });
 };
 
 export const getIdentityMatchController = async (req, res) => {
