@@ -1,21 +1,24 @@
 import createHttpError from 'http-errors';
+import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import { findUser } from '../../microservices/auth.js';
 import { env } from '../../utils/env.js';
 import { TransferCollection } from '../../database/models/transfersModel.js';
 
 import {
-  authorizeAndCreateTransfer,
+  transferBetweenAccounts,
   cancelTransfer,
   transferListByEvents,
   transferInfo,
   transferList,
 } from '../../microservices/plaid/transfer-service.js';
 
+import { sendMoney } from '../../microservices/plaid/personToPersonTransfer.js';
+
 /*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
-export const createTransferController = async (req, res) => {
+export const transferBetweenAccountsController = async (req, res) => {
   const { refreshToken } = req.cookies;
-  const { amount, destinationAccount, accountsId, legalName } = req.body;
+  const { amount, destinationAccount, sendFrom, sendTo, legalName } = req.body;
   // console.log(req.body);
 
   const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
@@ -30,12 +33,15 @@ export const createTransferController = async (req, res) => {
     throw createHttpError(400, 'Plaid not connected');
   }
 
-  const transfer = await authorizeAndCreateTransfer(user, amount, accountsId, legalName);
+  const transfer = await transferBetweenAccounts(user, amount, sendFrom, sendTo, legalName);
+
+  const send = await sendMoney();
 
   res.status(200).json({
     success: true,
     message: 'Перевод успешно создан!',
     transfer,
+    send,
   });
 };
 

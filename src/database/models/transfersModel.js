@@ -7,7 +7,8 @@ const transferSchema = new Schema(
     amount: { type: String, required: true },
     status: { type: String, required: true },
     type: { type: String, required: true },
-    accauntId: { type: String, required: true },
+    accountId: { type: String, required: true },
+    groupId: { type: String, required: true },
   },
   { versionKey: false, timestamps: true },
 );

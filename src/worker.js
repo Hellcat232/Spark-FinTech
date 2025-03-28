@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import processWebhooks from './microservices/webhooks.js';
+import { processWebhooksPlaid } from './microservices/webhooks.js';
 import Synchronization from './microservices/Synchronization.js';
 import { env } from './utils/env.js';
 
@@ -21,5 +21,5 @@ console.log('🚀 WebHook Worker запущен и слушает WebHooks...');
 setInterval(async () => {
   console.log('🔄 Запуск обработки WebHooks...');
 
-  await processWebhooks();
-}, 1000);
+  await processWebhooksPlaid();
+}, 20000);

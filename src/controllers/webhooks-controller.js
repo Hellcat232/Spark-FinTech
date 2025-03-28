@@ -4,7 +4,7 @@ import { WebhookQueue } from '../database/models/webhooksModel.js';
 
 import { findUser } from '../microservices/auth.js';
 
-export const webhookController = async (req, res, next) => {
+export const webhookControllerPlaid = async (req, res, next) => {
   if (req.body.webhook_code === 'INITIAL_UPDATE' || req.body.webhook_code === 'HISTORICAL_UPDATE')
     return;
 
@@ -68,5 +68,24 @@ export const webhookController = async (req, res, next) => {
     res.status(200).send('Webhook received');
   } catch (error) {
     throw createHttpError(500, error.message);
+  }
+};
+
+export const webhookControllerDwolla = async (req, res, next) => {
+  try {
+    const signature = req.headers['x-request-signature-sha-256'];
+    const rawBody = JSON.stringify(req.body);
+
+    // Здесь можно в будущем добавить проверку подписи, если хочешь валидацию
+    // Пока просто логируем и подтверждаем приём
+
+    console.log('📬 Webhook от Dwolla:', req.body);
+
+    // TODO: Обработка событий (event.topic, resourceId и т.д.)
+
+    res.status(200).send('Webhook received');
+  } catch (error) {
+    console.error('❌ Ошибка в Dwolla Webhook:', error.message);
+    res.status(500).send('Server error');
   }
 };

@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { compareHash } from '../utils/hash.js';
 
+import { createDwollaCastomer } from '../microservices/plaid/personToPersonTransfer.js';
+
 import { env } from '../utils/env.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
 import { createSession, deleteSession, findSession } from './session.js';
@@ -24,6 +26,21 @@ export const signUp = async (body) => {
     const registerUser = await UserRegisterCollection.create([body], { session });
 
     const newSession = await createSession({ userId: registerUser[0]._id }, session);
+
+    //создаём пользователя в Dwolla в момент регистрации
+    const customerURL = await createDwollaCastomer(body);
+    if (customerURL) {
+      await UserRegisterCollection.findByIdAndUpdate(
+        registerUser[0]._id,
+        {
+          $set: {
+            dwollaCustomerURL: customerURL,
+          },
+        },
+        { new: true, session },
+      );
+    }
+    // console.log(customerURL);
 
     await session.commitTransaction();
     return { registerUser, newSession };

@@ -1,9 +1,10 @@
 import { WebhookQueue } from '../database/models/webhooksModel.js';
 import { fetchAssetReport } from './plaid/assets-service.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
+import { dwollaClient } from '../thirdAPI/initDwolla.js';
 import { env } from '../utils/env.js';
 
-const processWebhooks = async () => {
+export const processWebhooksPlaid = async () => {
   const pendingWebhooks = await WebhookQueue.find({ status: 'pending' });
 
   for (const webhook of pendingWebhooks) {
@@ -31,19 +32,48 @@ const processWebhooks = async () => {
             const sync = await plaidClient.transferEventSync({
               after_id: 0,
             });
-            if (sync.data.transfer_events.at(0).event_type === 'pending') {
-              await plaidClient.sandboxTransferSimulate({
-                transfer_id: sync.data.transfer_events.at(0).transfer_id,
-                event_type: 'posted',
-                failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              });
+            //debit
+            if (
+              sync.data.transfer_events.at(0).transfer_type === 'debit' &&
+              sync.data.transfer_events.at(0).event_type === 'pending'
+            ) {
+              // await plaidClient.sandboxTransferSimulate({
+              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
+              //   event_type: 'posted',
+              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              // });
             }
-            if (sync.data.transfer_events.at(0).event_type === 'posted') {
-              await plaidClient.sandboxTransferSimulate({
-                transfer_id: sync.data.transfer_events.at(0).transfer_id,
-                event_type: 'settled',
-                failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              });
+            if (
+              sync.data.transfer_events.at(0).transfer_type === 'debit' &&
+              sync.data.transfer_events.at(0).event_type === 'posted'
+            ) {
+              // await plaidClient.sandboxTransferSimulate({
+              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
+              //   event_type: 'settled',
+              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              // });
+            }
+
+            //credit
+            if (
+              sync.data.transfer_events.at(0).transfer_type === 'credit' &&
+              sync.data.transfer_events.at(0).event_type === 'pending'
+            ) {
+              // await plaidClient.sandboxTransferSimulate({
+              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
+              //   event_type: 'posted',
+              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              // });
+            }
+            if (
+              sync.data.transfer_events.at(0).transfer_type === 'credit' &&
+              sync.data.transfer_events.at(0).event_type === 'posted'
+            ) {
+              // await plaidClient.sandboxTransferSimulate({
+              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
+              //   event_type: 'settled',
+              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
+              // });
             }
           }
           console.log(webhook);
@@ -61,4 +91,4 @@ const processWebhooks = async () => {
   }
 };
 
-export default processWebhooks;
+export const proccessWebhookDwolla = async () => {};

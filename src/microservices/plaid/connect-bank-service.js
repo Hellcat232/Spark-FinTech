@@ -1,6 +1,7 @@
 import { plaidClient } from '../../thirdAPI/initPlaid.js';
 import { env } from '../../utils/env.js';
 import { UserRegisterCollection } from '../../database/models/userModel.js';
+import { createProcessorTokenAndFundingSource } from '../../thirdAPI/initDwolla.js';
 
 /*=============Создаём LinkToken для отправки на FrontEnd=====================*/
 export const linkTokenCreate = async (userCredentials) => {
@@ -10,14 +11,18 @@ export const linkTokenCreate = async (userCredentials) => {
         client_user_id: userCredentials._id,
       },
 
-      // auth: { auth_type_select_enabled: true },
-
       client_name: 'My FinTech App',
       products: ['auth', 'transactions', 'liabilities', 'assets', 'identity', 'transfer'],
       country_codes: ['US'],
       language: 'en',
       webhook: env('WEBHOOK_URL'),
       redirect_uri: 'http://localhost:5173/balance',
+
+      // auth: {
+      //   instant_match_enabled: true,
+      //   automated_microdeposits_enabled: true,
+      //   same_day_microdeposits_enabled: true,
+      // },
     };
 
     const response = await plaidClient.linkTokenCreate(request);
@@ -29,12 +34,17 @@ export const linkTokenCreate = async (userCredentials) => {
   }
 };
 
-/*===========Тут обмениваем PublicToken на AccessToken==========*/
-export const exchangePublicToken = async (publicToken) => {
+/*===========Тут обмениваем PublicToken на AccessToken и создаём ProcessorToken для Dwolla==========*/
+export const exchangePublicToken = async (publicToken, userId) => {
   try {
     const response = await plaidClient.itemPublicTokenExchange({ public_token: publicToken });
     const accessToken = response.data.access_token;
     const itemId = response.data.item_id;
+
+    //создаём Dwolla ProcessorToken
+    if (accessToken) {
+      await createProcessorTokenAndFundingSource(accessToken, userId);
+    }
 
     return { accessToken, itemId };
   } catch (error) {

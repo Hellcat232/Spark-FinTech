@@ -1,7 +1,7 @@
 import express from 'express';
 import { ctrlWrapper } from '../utils/ctrlWrapper.js';
 import {
-  createTransferController,
+  transferBetweenAccountsController,
   cancelTransferController,
   transferInfoController,
   transferListController,
@@ -51,7 +51,7 @@ plaidRoute.get('/balances', ctrlWrapper(getUserBalanceController));
 
 plaidRoute.get('/transactions', ctrlWrapper(getUserTransactionController));
 
-plaidRoute.post('/transfer_init', ctrlWrapper(createTransferController));
+plaidRoute.post('/transfer_init', ctrlWrapper(transferBetweenAccountsController));
 plaidRoute.post('/transfer_cancel', ctrlWrapper(cancelTransferController));
 plaidRoute.post('/transfer_list/:id', ctrlWrapper(transferInfoController));
 plaidRoute.get('/transfer_list', ctrlWrapper(transferListController));
@@ -64,8 +64,8 @@ plaidRoute.post('/identity_upload', ctrlWrapper(identityUploadController));
 
 plaidRoute.post('/recurring_transfer_create', ctrlWrapper(createRecurringTransferController));
 plaidRoute.post('/recurring_transfer_cancel', ctrlWrapper(cancelRecurringTransferController));
-plaidRoute.get('recurring_transfer_list', ctrlWrapper(getRecurringTransferListController));
-plaidRoute.post('recurring_transfer_list/:id', ctrlWrapper(getRecurringTransferInfoController));
+plaidRoute.get('/recurring_transfer_list', ctrlWrapper(getRecurringTransferListController));
+plaidRoute.post('/recurring_transfer_list/:id', ctrlWrapper(getRecurringTransferInfoController));
 
 plaidRoute.get('/rtp_eligibility', ctrlWrapper(rtpTransferEligibilityController));
 plaidRoute.post('/rtp_create', ctrlWrapper(rtpTransferCreateController));

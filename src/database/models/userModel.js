@@ -100,6 +100,10 @@ const userSchema = new Schema(
     reportAssetsId: { type: String, required: false },
     plaidAccessToken: { type: String, required: false },
     plaidItemId: { type: String, required: false },
+    dwollaCustomerURL: {
+      type: String,
+      required: false,
+    },
   },
 
   { versionKey: false, timestamps: true },

@@ -1,25 +1,31 @@
 import mongoose from 'mongoose';
 import createHttpError from 'http-errors';
+import { v4 as uuidv4 } from 'uuid';
 
 import { plaidClient } from '../../thirdAPI/initPlaid.js';
 import { env } from '../../utils/env.js';
+import { syncTransferEvents } from '../../utils/syncTransferEvents.js';
 
 import { TransferCollection } from '../../database/models/transfersModel.js';
 import { EventsTransferCollection } from '../../database/models/eventsTransferModel.js';
 
 /*Использовать для платежей, без одобрением через UI*/
 
-/*==========================Создаем авторизацию трансфера и получаем разрешение=================*/
-export const authorizeAndCreateTransfer = async (user, amount, accountId, legalName) => {
+/*==========================Отправляем средства=================*/
+export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, legalName) => {
   const session = await mongoose.startSession();
+  const groupId = uuidv4();
+
+  await plaidClient.sandboxTransferSweepSimulate({}); //for sendbox
+  await plaidClient.sandboxTransferLedgerSimulateAvailable({}); //for sendbox
 
   try {
     session.startTransaction();
 
     // 1. Авторизация перевода
-    const authResponse = await plaidClient.transferAuthorizationCreate({
+    const debitAuth = await plaidClient.transferAuthorizationCreate({
       access_token: user.plaidAccessToken,
-      account_id: accountId,
+      account_id: sendFrom,
       amount: amount, // Сумма в строковом формате
       network: 'ach', // Используем ACH
       type: 'debit',
@@ -30,73 +36,135 @@ export const authorizeAndCreateTransfer = async (user, amount, accountId, legalN
       },
     });
 
+    // console.log(debitAuth.data.authorization, 'debit');
+
     // Проверяем, разрешён ли перевод
     if (
-      !authResponse.data.authorization.decision ||
-      authResponse.data.authorization.decision !== 'approved'
+      !debitAuth.data.authorization.decision ||
+      debitAuth.data.authorization.decision !== 'approved'
     ) {
-      throw createHttpError(409, 'Перевод не одобрен Plaid');
+      await plaidClient.transferAuthorizationCancel({
+        authorization_id: debitAuth.data.authorization.id,
+      });
+      throw createHttpError(409, 'Перевод не одобрен Plaid (списание)');
     }
 
     // 2. Создание перевода после успешной авторизации
-    const transferResponse = await plaidClient.transferCreate({
+    const debitResponse = await plaidClient.transferCreate({
       access_token: user.plaidAccessToken,
-      authorization_id: authResponse.data.authorization.id, // Берём ID авторизации
-      account_id: accountId,
+      authorization_id: debitAuth.data.authorization.id, // Берём ID авторизации
+      account_id: sendFrom,
       amount: amount,
       description: 'payment',
+      metadata: { groupId },
     });
+    //for sandbox
+    if (debitResponse) {
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: debitResponse.data.transfer.id,
+        event_type: 'posted',
+      });
+
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: debitResponse.data.transfer.id,
+        event_type: 'settled',
+      });
+    }
 
     //Записали перевод в базу
     await TransferCollection.create(
       [
         {
           userId: user._id,
-          transferId: transferResponse.data.transfer.id,
-          amount: transferResponse.data.transfer.amount,
-          status: transferResponse.data.transfer.status,
-          type: transferResponse.data.transfer.type,
-          accauntId: transferResponse.data.transfer.account_id,
+          transferId: debitResponse.data.transfer.id,
+          amount: debitResponse.data.transfer.amount,
+          // status: debitResponse.data.transfer.status,
+          status: 'settled',
+          type: debitResponse.data.transfer.type,
+          accountId: debitResponse.data.transfer.account_id,
+          groupId: debitResponse.data.transfer.metadata.groupId,
         },
       ],
       { session },
     );
 
-    // 3. Получаем последний Event ID из базы
-    let lastEvent = await EventsTransferCollection.findOne().sort({ eventId: -1 }).lean();
-    let lastEventId = lastEvent ? lastEvent.eventId : 0;
+    // Синхронизация после дебита
+    // await syncTransferEvents(user._id, session);
 
-    // 4. Синхронизация событий перевода
-    const transferEventSync = await plaidClient.transferEventSync({
-      after_id: lastEventId,
+    //5.Авторизация получения
+    const creditAuth = await plaidClient.transferAuthorizationCreate({
+      access_token: user.plaidAccessToken,
+      account_id: sendTo,
+      amount: amount,
+      network: 'ach',
+      type: 'credit',
+      ach_class: 'ppd',
+      user: {
+        legal_name: legalName,
+        email_address: user.email,
+      },
     });
 
-    if (transferEventSync.data.transfer_events.length > 0) {
-      lastEventId = transferEventSync.data.transfer_events.at(0).event_id;
-      //Записали ивент в базу
-      await EventsTransferCollection.create(
-        [
-          {
-            userId: user._id,
-            eventId: transferEventSync.data.transfer_events.at(0).event_id,
-            eventType: transferEventSync.data.transfer_events.at(0).event_type,
-            accountId: transferEventSync.data.transfer_events.at(0).account_id,
-            transferAmount: transferEventSync.data.transfer_events.at(0).transfer_amount,
-            transferId: transferEventSync.data.transfer_events.at(0).transfer_id,
-            transferType: transferEventSync.data.transfer_events.at(0).transfer_type,
-            timestamp: transferEventSync.data.transfer_events.at(0).timestamp,
-          },
-        ],
-        { session },
-      );
+    // console.log(creditAuth.data.authorization, 'credit');
+
+    // Проверяем, разрешёно ли зачисление
+    if (
+      !creditAuth.data.authorization.decision ||
+      creditAuth.data.authorization.decision !== 'approved'
+    ) {
+      await plaidClient.transferAuthorizationCancel({
+        authorization_id: creditAuth.data.authorization.id,
+      });
+      throw createHttpError(409, 'Перевод не одобрен Plaid (получение)');
     }
+
+    const creditResponse = await plaidClient.transferCreate({
+      access_token: user.plaidAccessToken,
+      authorization_id: creditAuth.data.authorization.id, // Берём ID авторизации
+      account_id: sendTo,
+      amount: amount,
+      description: 'payment',
+      metadata: { groupId },
+    });
+    if (creditResponse) {
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: creditResponse.data.transfer.id,
+        event_type: 'posted',
+      });
+
+      await plaidClient.sandboxTransferSimulate({
+        transfer_id: creditResponse.data.transfer.id,
+        event_type: 'settled',
+      });
+    }
+
+    //Записали зачисление в базу
+    await TransferCollection.create(
+      [
+        {
+          userId: user._id,
+          transferId: creditResponse.data.transfer.id,
+          amount: creditResponse.data.transfer.amount,
+          // status: creditResponse.data.transfer.status,
+          status: 'settled',
+          type: creditResponse.data.transfer.type,
+          accountId: creditResponse.data.transfer.account_id,
+          groupId: creditResponse.data.transfer.metadata.groupId,
+        },
+      ],
+      { session },
+    );
+
+    // Синхронизация событий после кредитного перевода
+    await syncTransferEvents(user._id, session);
+
     //Симулируем Webhook в Sandbox
     await plaidClient.sandboxTransferFireWebhook({
       webhook: env('WEBHOOK_URL'),
     });
 
     await session.commitTransaction();
-    return transferResponse.data.transfer;
+    return { debit: debitResponse.data.transfer, credit: creditResponse.data.transfer };
   } catch (error) {
     console.error(
       'Ошибка при авторизации и создании перевода:',

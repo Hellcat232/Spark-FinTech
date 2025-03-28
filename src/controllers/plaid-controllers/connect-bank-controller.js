@@ -47,7 +47,7 @@ export const exchangePublicTokenController = async (req, res) => {
     throw createHttpError(404, 'User not found!');
   }
 
-  const response = await exchangePublicToken(publicToken);
+  const response = await exchangePublicToken(publicToken, user._id);
 
   await UserRegisterCollection.findByIdAndUpdate(
     user._id,
