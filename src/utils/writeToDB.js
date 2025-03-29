@@ -1,11 +1,12 @@
 import { TransferCollection } from '../database/models/transfersModel.js';
 
-export const writeToDB = async (user, debitOrCredit, from, to, session) => {
+export const writeToDB = async (user, debitOrCredit, from, to, session, extra = {}) => {
   const transferDoc = {
     userId: user._id,
     transferId: debitOrCredit.data.transfer.id,
     amount: debitOrCredit.data.transfer.amount,
-    status: 'settled',
+    status: debitOrCredit.data.transfer.status,
+    // status: 'settled', //for sandbox
     type: debitOrCredit.data.transfer.type,
     accountId: debitOrCredit.data.transfer.account_id,
     groupId: debitOrCredit.data.transfer.metadata.groupId,
@@ -14,6 +15,7 @@ export const writeToDB = async (user, debitOrCredit, from, to, session) => {
     via: 'dwolla',
     isExternal: from.userId.toString() === to.userId.toString() ? false : true,
     initiatedBy: user._id,
+    ...extra,
   };
 
   const response = await TransferCollection.create([transferDoc], { session });

@@ -75,8 +75,9 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
 
     const from = await BankAccountCollection.findOne({ accountId: sendFrom });
     const to = await BankAccountCollection.findOne({ accountId: sendTo });
+
     if (from?.fundingSourceURL && to?.fundingSourceURL) {
-      await dwollaClient.post('transfers', {
+      const dwollaTransferRes = await dwollaClient.post('transfers', {
         _links: {
           source: { href: from.fundingSourceURL },
           destination: { href: to.fundingSourceURL },
@@ -84,13 +85,19 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
         amount: { currency: 'USD', value: amount },
       });
 
+      const dwollaTransferUrl = dwollaTransferRes.headers?.get('location');
+      const dwollaTransferId = dwollaTransferUrl?.split('/').pop();
+
+      //Записали перевод в базу
+      const transferDetails = await writeToDB(user, debitResponse, from, to, session, {
+        dwollaTransferId,
+        dwollaTransferUrl,
+      });
+
       console.log('✅ Деньги успешно отправлены через Dwolla');
     } else {
       throw new Error('Не найдены funding source у отправителя или получателя');
     }
-
-    //Записали перевод в базу
-    const transferDetails = await writeToDB(user, debitResponse, from, to, session);
 
     // Синхронизация событий после дебетового списания
     await syncTransferEvents(user._id, session);
@@ -101,7 +108,7 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
     });
 
     await session.commitTransaction();
-    return { debitDetails: debitResponse.data.transfer, transferDetails };
+    return { debitDetails: debitResponse.data.transfer };
   } catch (error) {
     console.log(error.message);
     await session.abortTransaction();
@@ -203,13 +210,34 @@ export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legal
   }
 };
 
-export const getTransferHistory = async (userId) => {
+export const getTransferHistory = async (userId, filter) => {
   try {
-    const history = await TransferCollection.find({ userId })
-      .sort({ createdAt: -1 }) // от новых к старым
+    // Пагинация и фильтры из query
+    const { page = 1, limit = 20, isExternal, status, type } = filter;
+    const query = { userId };
+
+    if (isExternal !== undefined) {
+      query.isExternal = isExternal === 'true';
+    }
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (type) {
+      query.type = type;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await TransferCollection.countDocuments(query);
+
+    const transfers = await TransferCollection.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
       .lean();
 
-    const formatted = history.map((t) => ({
+    const formatted = transfers.map((t) => ({
       transferId: t.transferId,
       amount: t.amount,
       status: t.status,
@@ -223,7 +251,13 @@ export const getTransferHistory = async (userId) => {
       createdAt: t.createdAt,
     }));
 
-    return { count: formatted.length, transfers: formatted };
+    return {
+      count: formatted.length,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit),
+      totalItems: total,
+      transfers: formatted,
+    };
   } catch (error) {
     console.error('❌ Ошибка при получении истории переводов:', error.message);
   }

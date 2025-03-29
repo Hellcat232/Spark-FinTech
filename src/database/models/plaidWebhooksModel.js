@@ -14,4 +14,4 @@ const webhookSchema = new Schema(
   { versionKey: false },
 );
 
-export const WebhookQueue = model('WebhookQueue', webhookSchema);
+export const plaidWebhookQueue = model('plaid-Webhook-Queue', webhookSchema);

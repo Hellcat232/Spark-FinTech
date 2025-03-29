@@ -1,11 +1,13 @@
-import { WebhookQueue } from '../database/models/webhooksModel.js';
+import { plaidWebhookQueue } from '../database/models/plaidWebhooksModel.js';
+import { DwollaWebhoolQueue } from '../database/models/dwollaWebhookModel.js';
+import { TransferCollection } from '../database/models/transfersModel.js';
 import { fetchAssetReport } from './plaid/assets-service.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 import { dwollaClient } from '../thirdAPI/initDwolla.js';
 import { env } from '../utils/env.js';
 
 export const processWebhooksPlaid = async () => {
-  const pendingWebhooks = await WebhookQueue.find({ status: 'pending' });
+  const pendingWebhooks = await plaidWebhookQueue.find({ status: 'pending' });
 
   for (const webhook of pendingWebhooks) {
     try {
@@ -84,11 +86,72 @@ export const processWebhooksPlaid = async () => {
       }
 
       // Помечаем WebHook как обработанный
-      await WebhookQueue.updateOne({ _id: webhook._id }, { $set: { status: 'completed' } });
+      await plaidWebhookQueue.updateOne({ _id: webhook._id }, { $set: { status: 'completed' } });
     } catch (error) {
       console.error('❌ Ошибка при обработке WebHook:', error.message);
     }
   }
 };
 
-export const proccessWebhookDwolla = async () => {};
+export const proccessWebhookDwolla = async () => {
+  const pendingWebhooks = await DwollaWebhoolQueue.find({
+    status: 'pending',
+    signatureValid: true,
+  });
+
+  for (const webhook of pendingWebhooks) {
+    try {
+      console.log(`⚙️ Обработка: ${webhook.topic} | ${webhook.resourceId}`);
+
+      const transferUrl = webhook.payload?._links?.resource?.href;
+
+      switch (webhook.topic) {
+        case 'customer_funding_source_added':
+        case 'customer_funding_source_verified':
+          break;
+
+        case 'customer_transfer_created':
+          await TransferCollection.updateOne(
+            { dwollaTransferUrl: transferUrl },
+            { $set: { status: 'pending' } },
+          );
+          break;
+
+        case 'customer_transfer_completed':
+          await TransferCollection.updateOne(
+            { dwollaTransferUrl: transferUrl },
+            { $set: { status: 'settled' } },
+          );
+          break;
+
+        case 'customer_transfer_failed':
+          await TransferCollection.updateOne(
+            { dwollaTransferUrl: transferUrl },
+            { $set: { status: 'failed' } },
+          );
+          break;
+
+        case 'customer_bank_transfer_created':
+          await TransferCollection.updateOne(
+            { dwollaTransferUrl: transferUrl },
+            { $set: { status: 'completed' } },
+          );
+          break;
+
+        case 'customer_bank_transfer_completed':
+          await TransferCollection.updateOne(
+            { dwollaTransferUrl: transferUrl },
+            { $set: { status: 'completed' } },
+          );
+          break;
+
+        default:
+          console.log(`🔔 Необработанный webhook: ${webhook.topic}`);
+      }
+
+      await DwollaWebhoolQueue.updateOne({ _id: webhook._id }, { $set: { status: 'completed' } });
+    } catch (err) {
+      console.error('❌ Ошибка в обработке Dwolla Webhook:', err.message);
+    }
+  }
+};

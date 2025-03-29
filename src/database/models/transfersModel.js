@@ -14,6 +14,8 @@ const transferSchema = new Schema(
     via: { type: String, enum: ['plaid', 'dwolla'], required: true }, // Через кого шло
     isExternal: { type: Boolean, default: false }, // Если внешний перевод
     initiatedBy: { type: Schema.Types.ObjectId, ref: 'User' }, // Кто инициировал (может отличаться от userId)
+    dwollaTransferId: { type: String, default: null, required: true },
+    dwollaTransferUrl: { type: String, default: null, required: true },
   },
   { versionKey: false, timestamps: true },
 );

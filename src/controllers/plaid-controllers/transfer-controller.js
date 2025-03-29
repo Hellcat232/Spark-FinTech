@@ -59,7 +59,7 @@ export const getTransferHistoryController = async (req, res) => {
   const decode = jwt.verify(refreshToken, env('JWT_SECRET'));
   const userId = decode.userId;
 
-  const transfersHistory = await getTransferHistory(userId);
+  const transfersHistory = await getTransferHistory(userId, req.query);
 
   res.status(200).json({
     success: true,

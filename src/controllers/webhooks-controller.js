@@ -1,9 +1,11 @@
 import createHttpError from 'http-errors';
 
-import { WebhookQueue } from '../database/models/webhooksModel.js';
+import { plaidWebhookQueue } from '../database/models/plaidWebhooksModel.js';
+import { DwollaWebhoolQueue } from '../database/models/dwollaWebhookModel.js';
 
 import { findUser } from '../microservices/auth.js';
 import { dwollaClient } from '../thirdAPI/initDwolla.js';
+import { verifyDwollaSignature } from '../microservices/dwolla/verify-dwolla-signature.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
   if (
@@ -20,7 +22,7 @@ export const webhookControllerPlaid = async (req, res, next) => {
       req.body.webhook_code === 'BANK_TRANSFERS_EVENTS_UPDATE' ||
       req.body.webhook_code === 'TRANSFER_EVENTS_UPDATE'
     ) {
-      await WebhookQueue.create({
+      await plaidWebhookQueue.create({
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
         asset_report_id: req.body.asset_report_id || null,
@@ -38,7 +40,7 @@ export const webhookControllerPlaid = async (req, res, next) => {
         throw createHttpError(400, 'Plaid not connected');
       }
 
-      await WebhookQueue.create({
+      await plaidWebhookQueue.create({
         userId: user ? user._id : null,
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
@@ -59,7 +61,7 @@ export const webhookControllerPlaid = async (req, res, next) => {
         throw createHttpError(400, "Can't create report without credentials");
       }
 
-      await WebhookQueue.create({
+      await plaidWebhookQueue.create({
         userId: user ? user._id : null,
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
@@ -80,11 +82,31 @@ export const webhookControllerDwolla = async (req, res, next) => {
   try {
     const signature = req.headers['x-request-signature-sha-256'];
     const rawBody = JSON.stringify(req.body);
+    const isValid = verifyDwollaSignature(signature, rawBody);
 
-    // Здесь можно в будущем добавить проверку подписи, если хочешь валидацию
-    // Пока просто логируем и подтверждаем приём
+    console.log('Webhook-Dwolla', req.body);
 
-    // console.log('📬 Webhook от Dwolla:', req.body);
+    // Проверяем, был ли уже такой webhook по resourceId + topic
+    const duplicate = await DwollaWebhoolQueue.findOne({
+      resourceId: req.body.resourceId,
+      topic: req.body.topic,
+    }).lean();
+    if (duplicate) {
+      console.log(
+        `⛔ Повторный Webhook для resourceId: ${req.body.resourceId}, topic: ${req.body.topic}`,
+      );
+      return res.status(200).send('Duplicate ignored');
+    }
+
+    // Добавляем webhook в очередь
+    await DwollaWebhoolQueue.create({
+      webhookId: req.body.id,
+      topic: req.body.topic,
+      resourceId: req.body.resourceId,
+      payload: req.body,
+      status: isValid ? 'pending' : 'rejected',
+      signatureValid: isValid,
+    });
 
     const transferDetails = await dwollaClient.get(`transfers/${req.body.resourceId}`);
     if (transferDetails.body.status === 'pending') {
@@ -98,11 +120,19 @@ export const webhookControllerDwolla = async (req, res, next) => {
       });
     }
 
-    // TODO: Обработка событий (event.topic, resourceId и т.д.)
+    if (!isValid) {
+      console.warn(`❌ Подпись не прошла проверку: ${req.body.id}`);
+      return res.status(403).send('Invalid signature');
+    }
 
     res.status(200).send('Webhook received');
-  } catch (error) {
-    console.error('❌ Ошибка в Dwolla Webhook:', error.message);
+  } catch (err) {
+    if (err.code === 11000) {
+      console.log(`ℹ️ Дубликат webhook: ${req.body.resourceId}, topic: ${req.body.topic}`);
+      return res.status(200).send('Duplicate');
+    }
+
+    console.error('❌ Ошибка в webhookControllerDwolla:', err.message);
     res.status(500).send('Server error');
   }
 };
