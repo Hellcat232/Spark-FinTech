@@ -1,10 +1,11 @@
 import express from 'express';
 import { ctrlWrapper } from '../utils/ctrlWrapper.js';
 import {
-  transferBetweenAccountsController,
+  createDebitTransferController,
   cancelTransferController,
   transferInfoController,
   transferListController,
+  getTransferHistoryController,
 } from '../controllers/plaid-controllers/transfer-controller.js';
 
 import {
@@ -51,10 +52,11 @@ plaidRoute.get('/balances', ctrlWrapper(getUserBalanceController));
 
 plaidRoute.get('/transactions', ctrlWrapper(getUserTransactionController));
 
-plaidRoute.post('/transfer_init', ctrlWrapper(transferBetweenAccountsController));
+plaidRoute.post('/transfer_init', ctrlWrapper(createDebitTransferController));
 plaidRoute.post('/transfer_cancel', ctrlWrapper(cancelTransferController));
 plaidRoute.post('/transfer_list/:id', ctrlWrapper(transferInfoController));
 plaidRoute.get('/transfer_list', ctrlWrapper(transferListController));
+plaidRoute.get('/transfers/history', ctrlWrapper(getTransferHistoryController));
 
 plaidRoute.get('/accounts', ctrlWrapper(getAllUserBankAccountsController));
 

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { compareHash } from '../utils/hash.js';
 
-import { createDwollaCastomer } from '../microservices/plaid/personToPersonTransfer.js';
+import { createDwollaCastomer } from './dwolla/create-customer-dwolla.js';
 
 import { env } from '../utils/env.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';

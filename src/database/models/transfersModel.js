@@ -2,13 +2,18 @@ import { Schema, model } from 'mongoose';
 
 const transferSchema = new Schema(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    userId: { type: Schema.Types.ObjectId, ref: 'User' }, // Кто инициировал перевод
     transferId: { type: String, required: true },
     amount: { type: String, required: true },
-    status: { type: String, required: true },
-    type: { type: String, required: true },
-    accountId: { type: String, required: true },
-    groupId: { type: String, required: true },
+    status: { type: String, required: true }, // pending, settled и т.д.
+    type: { type: String, required: true }, // debit или credit
+    accountId: { type: String, required: true }, // С какого счёта
+    groupId: { type: String, required: true }, // Чтобы группировать пары переводов
+    note: { type: String, default: '' }, // Пояснение от пользователя
+    toUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null }, // Кому перевёл
+    via: { type: String, enum: ['plaid', 'dwolla'], required: true }, // Через кого шло
+    isExternal: { type: Boolean, default: false }, // Если внешний перевод
+    initiatedBy: { type: Schema.Types.ObjectId, ref: 'User' }, // Кто инициировал (может отличаться от userId)
   },
   { versionKey: false, timestamps: true },
 );

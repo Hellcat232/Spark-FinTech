@@ -5,20 +5,30 @@ import { findUser } from '../../microservices/auth.js';
 import { env } from '../../utils/env.js';
 import { TransferCollection } from '../../database/models/transfersModel.js';
 
+// import {
+//   transferBetweenAccounts,
+//   cancelTransfer,
+//   transferListByEvents,
+//   transferInfo,
+//   transferList,
+// } from '../../microservices/plaid/transfer-service.js';
+
 import {
-  transferBetweenAccounts,
+  createDebitTransfer,
+  createCreditTransfer,
   cancelTransfer,
   transferListByEvents,
+  getTransferHistory,
   transferInfo,
   transferList,
-} from '../../microservices/plaid/transfer-service.js';
+} from '../../microservices/plaid/transfer-service-d.js';
 
-import { sendMoney } from '../../microservices/plaid/personToPersonTransfer.js';
+import { sendMoney } from '../../microservices/dwolla/dwolla-transfer.service.js';
 
 /*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
-export const transferBetweenAccountsController = async (req, res) => {
+export const createDebitTransferController = async (req, res) => {
   const { refreshToken } = req.cookies;
-  const { amount, destinationAccount, sendFrom, sendTo, legalName } = req.body;
+  const { amount, sendFrom, sendTo, legalName } = req.body;
   // console.log(req.body);
 
   const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
@@ -33,15 +43,27 @@ export const transferBetweenAccountsController = async (req, res) => {
     throw createHttpError(400, 'Plaid not connected');
   }
 
-  const transfer = await transferBetweenAccounts(user, amount, sendFrom, sendTo, legalName);
-
-  const send = await sendMoney();
+  const transfer = await createDebitTransfer(user, amount, sendFrom, sendTo, legalName);
 
   res.status(200).json({
     success: true,
     message: 'Перевод успешно создан!',
     transfer,
-    send,
+  });
+};
+
+export const getTransferHistoryController = async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) throw createHttpError(401, 'Unauthorized: no token');
+
+  const decode = jwt.verify(refreshToken, env('JWT_SECRET'));
+  const userId = decode.userId;
+
+  const transfersHistory = await getTransferHistory(userId);
+
+  res.status(200).json({
+    success: true,
+    transfersHistory,
   });
 };
 

@@ -3,9 +3,14 @@ import createHttpError from 'http-errors';
 import { WebhookQueue } from '../database/models/webhooksModel.js';
 
 import { findUser } from '../microservices/auth.js';
+import { dwollaClient } from '../thirdAPI/initDwolla.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
-  if (req.body.webhook_code === 'INITIAL_UPDATE' || req.body.webhook_code === 'HISTORICAL_UPDATE')
+  if (
+    req.body.webhook_code === 'INITIAL_UPDATE' ||
+    req.body.webhook_code === 'HISTORICAL_UPDATE' ||
+    req.body.webhook_code === 'DEFAULT_UPDATE'
+  )
     return;
 
   console.log('Webhook got', req.body);
@@ -79,7 +84,19 @@ export const webhookControllerDwolla = async (req, res, next) => {
     // Здесь можно в будущем добавить проверку подписи, если хочешь валидацию
     // Пока просто логируем и подтверждаем приём
 
-    console.log('📬 Webhook от Dwolla:', req.body);
+    // console.log('📬 Webhook от Dwolla:', req.body);
+
+    const transferDetails = await dwollaClient.get(`transfers/${req.body.resourceId}`);
+    if (transferDetails.body.status === 'pending') {
+      await dwollaClient.post(`sandbox-simulations`, {
+        _links: {
+          transfer: {
+            href: transferDetails?.body?._links?.self?.href, // твой transfer.href
+          },
+        },
+        status: 'processed', // Или 'failed' или 'cancelled'
+      });
+    }
 
     // TODO: Обработка событий (event.topic, resourceId и т.д.)
 

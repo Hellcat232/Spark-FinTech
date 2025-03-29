@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { isValidObjectId } from 'mongoose';
 import createHttpError from 'http-errors';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -10,11 +11,12 @@ import { TransferCollection } from '../../database/models/transfersModel.js';
 import { EventsTransferCollection } from '../../database/models/eventsTransferModel.js';
 import { BankAccountCollection } from '../../database/models/accountsModel.js';
 import { dwollaClient } from '../../thirdAPI/initDwolla.js';
+import { writeToDB } from '../../utils/writeToDB.js';
 
 /*Использовать для платежей, без одобрением через UI*/
 
 /*==========================Отправляем средства=================*/
-export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, legalName) => {
+export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalName) => {
   const session = await mongoose.startSession();
   const groupId = uuidv4();
 
@@ -24,7 +26,6 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
   try {
     session.startTransaction();
 
-    // 1. Авторизация перевода
     const debitAuth = await plaidClient.transferAuthorizationCreate({
       access_token: user.plaidAccessToken,
       account_id: sendFrom,
@@ -37,8 +38,6 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
         email_address: user.email,
       },
     });
-
-    // console.log(debitAuth.data.authorization, 'debit');
 
     // Проверяем, разрешён ли перевод
     if (
@@ -74,43 +73,66 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
       });
     }
 
-    //Записали перевод в базу
-    await TransferCollection.create(
-      [
-        {
-          userId: user._id,
-          transferId: debitResponse.data.transfer.id,
-          amount: debitResponse.data.transfer.amount,
-          // status: debitResponse.data.transfer.status,
-          status: 'settled',
-          type: debitResponse.data.transfer.type,
-          accountId: debitResponse.data.transfer.account_id,
-          groupId: debitResponse.data.transfer.metadata.groupId,
+    const from = await BankAccountCollection.findOne({ accountId: sendFrom });
+    const to = await BankAccountCollection.findOne({ accountId: sendTo });
+    if (from?.fundingSourceURL && to?.fundingSourceURL) {
+      await dwollaClient.post('transfers', {
+        _links: {
+          source: { href: from.fundingSourceURL },
+          destination: { href: to.fundingSourceURL },
         },
-      ],
-      { session },
-    );
+        amount: { currency: 'USD', value: amount },
+      });
 
-    // Синхронизация после дебита
-    // await syncTransferEvents(user._id, session);
+      console.log('✅ Деньги успешно отправлены через Dwolla');
+    } else {
+      throw new Error('Не найдены funding source у отправителя или получателя');
+    }
 
-    //5.Авторизация получения
+    //Записали перевод в базу
+    const transferDetails = await writeToDB(user, debitResponse, from, to, session);
+
+    // Синхронизация событий после дебетового списания
+    await syncTransferEvents(user._id, session);
+
+    //Симулируем Webhook в Sandbox
+    await plaidClient.sandboxTransferFireWebhook({
+      webhook: env('WEBHOOK_URL'),
+    });
+
+    await session.commitTransaction();
+    return { debitDetails: debitResponse.data.transfer, transferDetails };
+  } catch (error) {
+    console.log(error.message);
+    await session.abortTransaction();
+    throw createHttpError(400, 'Не получилось списать средства с счёта');
+  } finally {
+    session.endSession();
+  }
+};
+
+/*==========================Запрашиваем средства=================*/
+export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legalName) => {
+  const session = await mongoose.startSession();
+  const groupId = uuidv4();
+
+  try {
+    session.startTransaction();
+
     const creditAuth = await plaidClient.transferAuthorizationCreate({
       access_token: user.plaidAccessToken,
-      account_id: sendTo,
-      amount: amount,
-      network: 'ach',
+      account_id: sendFrom,
+      amount: amount, // Сумма в строковом формате
+      network: 'ach', // Используем ACH
       type: 'credit',
-      ach_class: 'ppd',
+      ach_class: 'ppd', // PPD - личные платежи (можно использовать ccd)
       user: {
         legal_name: legalName,
         email_address: user.email,
       },
     });
 
-    // console.log(creditAuth.data.authorization, 'credit');
-
-    // Проверяем, разрешёно ли зачисление
+    // Проверяем, разрешён ли перевод
     if (
       !creditAuth.data.authorization.decision ||
       creditAuth.data.authorization.decision !== 'approved'
@@ -118,13 +140,14 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
       await plaidClient.transferAuthorizationCancel({
         authorization_id: creditAuth.data.authorization.id,
       });
-      throw createHttpError(409, 'Перевод не одобрен Plaid (получение)');
+      throw createHttpError(409, 'Перевод не одобрен Plaid (списание)');
     }
 
+    // 2. Создание перевода после успешной авторизации
     const creditResponse = await plaidClient.transferCreate({
       access_token: user.plaidAccessToken,
       authorization_id: creditAuth.data.authorization.id, // Берём ID авторизации
-      account_id: sendTo,
+      account_id: sendFrom,
       amount: amount,
       description: 'payment',
       metadata: { groupId },
@@ -142,22 +165,24 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
       });
     }
 
-    //Записали зачисление в базу
-    await TransferCollection.create(
-      [
-        {
-          userId: user._id,
-          transferId: creditResponse.data.transfer.id,
-          amount: creditResponse.data.transfer.amount,
-          // status: creditResponse.data.transfer.status,
-          status: 'settled',
-          type: creditResponse.data.transfer.type,
-          accountId: creditResponse.data.transfer.account_id,
-          groupId: creditResponse.data.transfer.metadata.groupId,
+    const from = await BankAccountCollection.findOne({ accountId: sendFrom });
+    const to = await BankAccountCollection.findOne({ accountId: sendTo });
+    if (from?.fundingSourceURL && to?.fundingSourceURL) {
+      await dwollaClient.post('transfers', {
+        _links: {
+          source: { href: from.fundingSourceURL },
+          destination: { href: to.fundingSourceURL },
         },
-      ],
-      { session },
-    );
+        amount: { currency: 'USD', value: amount },
+      });
+
+      console.log('✅ Деньги успешно получены через Dwolla');
+    } else {
+      throw new Error('Не найдены funding source у отправителя или получателя');
+    }
+
+    //Записали перевод в базу
+    const transferDetails = await writeToDB(user, creditResponse, from, to, session);
 
     // Синхронизация событий после кредитного перевода
     await syncTransferEvents(user._id, session);
@@ -167,31 +192,40 @@ export const transferBetweenAccounts = async (user, amount, sendFrom, sendTo, le
       webhook: env('WEBHOOK_URL'),
     });
 
-    const from = await BankAccountCollection.findOne({ accountId: sendFrom });
-    const to = await BankAccountCollection.findOne({ accountId: sendTo });
-    if (from && to) {
-      await dwollaClient.post('transfer', {
-        _links: {
-          source: { href: from },
-          destination: { href: to },
-        },
-        amount: { currency: 'USD', value: amount },
-      });
-
-      console.log('Money sended');
-    }
-
     await session.commitTransaction();
-    return { debit: debitResponse.data.transfer, credit: creditResponse.data.transfer };
+    return { creditDetails: creditResponse.data.transfer, transferDetails };
   } catch (error) {
-    console.error(
-      'Ошибка при авторизации и создании перевода:',
-      error.response?.data || error.message,
-    );
+    console.log(error.message);
     await session.abortTransaction();
-    throw error;
+    throw createHttpError(400, 'Не получилось запросить средства с счёта');
   } finally {
     session.endSession();
+  }
+};
+
+export const getTransferHistory = async (userId) => {
+  try {
+    const history = await TransferCollection.find({ userId })
+      .sort({ createdAt: -1 }) // от новых к старым
+      .lean();
+
+    const formatted = history.map((t) => ({
+      transferId: t.transferId,
+      amount: t.amount,
+      status: t.status,
+      type: t.type, // 'debit' или 'credit'
+      fromAccount: t.accountId,
+      toUserId: t.toUserId,
+      initiatedBy: t.initiatedBy,
+      isExternal: t.isExternal,
+      note: t.note,
+      via: t.via,
+      createdAt: t.createdAt,
+    }));
+
+    return { count: formatted.length, transfers: formatted };
+  } catch (error) {
+    console.error('❌ Ошибка при получении истории переводов:', error.message);
   }
 };
 
@@ -210,6 +244,7 @@ export const transferInfo = async (transferId) => {
   }
 };
 
+/*===================Список переводов за определённое время===================*/
 export const transferList = async () => {
   try {
     const request = {
