@@ -100,3 +100,44 @@ export const registerDwollaWebhook = async () => {
     console.error('❌ Ошибка при создании Dwolla Webhook:', error.response?.data || error.message);
   }
 };
+
+export const updateDwollaWebhook = async (webhookId, paused = false) => {
+  try {
+    const res = await dwollaClient.post(`webhook-subscriptions/${webhookId}`, { paused });
+
+    console.log(`🔄 Webhook ${webhookId} обновлён: paused = ${paused}`);
+    return res;
+  } catch (error) {
+    console.error(
+      `❌ Ошибка при обновлении Dwolla Webhook (${webhookId}):`,
+      error?.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+export const getDwollaWebhookSubscriptions = async () => {
+  try {
+    const response = await dwollaClient.get('webhook-subscriptions');
+
+    const webhooks = response.body._embedded?.['webhook-subscriptions'] || [];
+
+    console.log(`📬 Найдено ${webhooks.length} подписок на вебхуки:\n`);
+
+    for (const hook of webhooks) {
+      console.log(`🧷 ID: ${hook.id}`);
+      console.log(`🌐 URL: ${hook.url}`);
+      console.log(`⏸️ Paused: ${hook.paused}`);
+      console.log(`📅 Created: ${hook.created}`);
+      console.log('----------------------------------');
+    }
+
+    return webhooks;
+  } catch (error) {
+    console.error(
+      '❌ Ошибка при получении списка webhook-подписок:',
+      error?.response?.data || error.message,
+    );
+    return [];
+  }
+};

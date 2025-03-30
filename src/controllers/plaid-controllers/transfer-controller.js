@@ -23,8 +23,6 @@ import {
   transferList,
 } from '../../microservices/plaid/transfer-service-d.js';
 
-import { sendMoney } from '../../microservices/dwolla/dwolla-transfer.service.js';
-
 /*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
 export const createDebitTransferController = async (req, res) => {
   const { refreshToken } = req.cookies;

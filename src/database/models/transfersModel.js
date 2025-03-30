@@ -14,8 +14,18 @@ const transferSchema = new Schema(
     via: { type: String, enum: ['plaid', 'dwolla'], required: true }, // Через кого шло
     isExternal: { type: Boolean, default: false }, // Если внешний перевод
     initiatedBy: { type: Schema.Types.ObjectId, ref: 'User' }, // Кто инициировал (может отличаться от userId)
+    senderUrl: { type: String, default: null, required: true },
     dwollaTransferId: { type: String, default: null, required: true },
     dwollaTransferUrl: { type: String, default: null, required: true },
+    // trace: [
+    //   {
+    //     event: { type: String, required: true },
+    //     at: { type: Date, required: true },
+    //     customer: { type: String },
+    //     direction: { type: String, enum: ['debit', 'credit', null], default: null },
+    //     raw: { type: Object },
+    //   },
+    // ],
   },
   { versionKey: false, timestamps: true },
 );

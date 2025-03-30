@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { isValidObjectId } from 'mongoose';
 import createHttpError from 'http-errors';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,6 +11,7 @@ import { EventsTransferCollection } from '../../database/models/eventsTransferMo
 import { BankAccountCollection } from '../../database/models/accountsModel.js';
 import { dwollaClient } from '../../thirdAPI/initDwolla.js';
 import { writeToDB } from '../../utils/writeToDB.js';
+import { sendMoney } from '../dwolla/dwolla-transfer-service.js';
 
 /*Использовать для платежей, без одобрением через UI*/
 
@@ -77,13 +77,15 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
     const to = await BankAccountCollection.findOne({ accountId: sendTo });
 
     if (from?.fundingSourceURL && to?.fundingSourceURL) {
-      const dwollaTransferRes = await dwollaClient.post('transfers', {
-        _links: {
-          source: { href: from.fundingSourceURL },
-          destination: { href: to.fundingSourceURL },
-        },
-        amount: { currency: 'USD', value: amount },
-      });
+      // const dwollaTransferRes = await dwollaClient.post('transfers', {
+      //   _links: {
+      //     source: { href: from.fundingSourceURL },
+      //     destination: { href: to.fundingSourceURL },
+      //   },
+      //   amount: { currency: 'USD', value: amount },
+
+      // });
+      const dwollaTransferRes = await sendMoney(from, to, amount);
 
       const dwollaTransferUrl = dwollaTransferRes.headers?.get('location');
       const dwollaTransferId = dwollaTransferUrl?.split('/').pop();

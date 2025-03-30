@@ -104,6 +104,8 @@ const userSchema = new Schema(
       type: String,
       required: false,
     },
+    dwollaCustomerHasVerify: { type: Boolean, default: false, required: false },
+    dwollaCustomerDeactivated: { type: Boolean, default: false, required: false },
   },
 
   { versionKey: false, timestamps: true },

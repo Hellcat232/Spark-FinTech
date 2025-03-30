@@ -1,9 +1,15 @@
 import { plaidWebhookQueue } from '../database/models/plaidWebhooksModel.js';
 import { DwollaWebhoolQueue } from '../database/models/dwollaWebhookModel.js';
 import { TransferCollection } from '../database/models/transfersModel.js';
+import { UserRegisterCollection } from '../database/models/userModel.js';
 import { fetchAssetReport } from './plaid/assets-service.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
-import { dwollaClient } from '../thirdAPI/initDwolla.js';
+import { makeTraceObj, mapStatus, isDwollaBankTransferDebit } from '../utils/transferTrace.js';
+import {
+  dwollaClient,
+  updateDwollaWebhook,
+  getDwollaWebhookSubscriptions,
+} from '../thirdAPI/initDwolla.js';
 import { env } from '../utils/env.js';
 
 export const processWebhooksPlaid = async () => {
@@ -101,49 +107,207 @@ export const proccessWebhookDwolla = async () => {
 
   for (const webhook of pendingWebhooks) {
     try {
-      console.log(`⚙️ Обработка: ${webhook.topic} | ${webhook.resourceId}`);
+      // console.log(`⚙️ Обработка: ${webhook.topic} | ${webhook.resourceId}`);
 
-      const transferUrl = webhook.payload?._links?.resource?.href;
+      const { topic, payload, resourceId } = webhook;
 
-      switch (webhook.topic) {
-        case 'customer_funding_source_added':
-        case 'customer_funding_source_verified':
+      switch (topic) {
+        case 'customer_created': {
+          console.log(`Dwolla customer "${resourceId}" created`);
           break;
+        }
+        case 'customer_verified': {
+          const user = await UserRegisterCollection.findOne({
+            dwollaCustomerURL: payload?._links?.customer?.href,
+          });
+          if (!user) {
+            console.log(`Пользователь с таким ${payload?._links?.customer?.href} не найден`);
+          }
+
+          await UserRegisterCollection.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                dwollaCustomerHasVerify: true,
+              },
+            },
+          );
+
+          break;
+        }
+
+        case 'customer_deactivated': {
+          const user = await UserRegisterCollection.findOne({
+            dwollaCustomerURL: payload?._links?.customer?.href,
+          });
+          if (user) {
+            await UserRegisterCollection.updateOne(
+              { _id: user._id },
+              {
+                $set: { dwollaCustomerDeactivated: true, dwollaCustomerHasVerify: false },
+                $unset: { dwollaCustomerURL: 1 },
+              },
+            );
+            console.log(
+              `Пользователь ${user._id}(${user.firstName}_${user.lastName}) с таким ${payload?._links?.customer?.href} был деактивирован`,
+            );
+          } else {
+            console.log(`Пользователь ${user._id}(${user.firstName}_${user.lastName}) не найден`);
+          }
+
+          break;
+        }
+
+        case 'customer_funding_source_added': {
+          const user = await UserRegisterCollection.findOne({
+            dwollaCustomerURL: payload?._links?.customer?.href,
+          });
+          if (user) {
+            console.log(
+              `Пользовательская funding_source был добавлена для ${user._id}(${user.firstName}_${user.lastName})`,
+            );
+          } else {
+            console.log(`Пользователь ${user._id}(${user.firstName}_${user.lastName}) не найден`);
+          }
+
+          break;
+        }
+        case 'customer_funding_source_verified': {
+          const user = await UserRegisterCollection.findOne({
+            dwollaCustomerURL: payload?._links?.customer?.href,
+          });
+          if (user) {
+            console.log(
+              `Пользовательская funding_source был верифицирован для ${user._id}(${user.firstName}_${user.lastName})`,
+            );
+          } else {
+            console.log(`Пользователь ${user._id}(${user.firstName}_${user.lastName}) не найден`);
+          }
+
+          break;
+        }
 
         case 'customer_transfer_created':
-          await TransferCollection.updateOne(
-            { dwollaTransferUrl: transferUrl },
-            { $set: { status: 'pending' } },
-          );
+          console.log(`🟡 TRANSFER_CREATED: ${resourceId}`);
           break;
 
-        case 'customer_transfer_completed':
-          await TransferCollection.updateOne(
-            { dwollaTransferUrl: transferUrl },
-            { $set: { status: 'settled' } },
-          );
-          break;
+        case 'customer_transfer_completed': {
+          console.log(`✅ TRANSFER_COMPLETED: ${resourceId}`);
 
-        case 'customer_transfer_failed':
-          await TransferCollection.updateOne(
-            { dwollaTransferUrl: transferUrl },
-            { $set: { status: 'failed' } },
-          );
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'settled' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'completed'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
           break;
+        }
+
+        case 'customer_transfer_failed': {
+          console.log(`❌ TRANSFER_FAILED: ${resourceId}`);
+
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'failed' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'failed'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
+          break;
+        }
+
+        case 'customer_transfer_cancelled': {
+          console.log(`🚫 TRANSFER_CANCELLED: ${resourceId}`);
+
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'cancelled' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'cancelled'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
+          break;
+        }
 
         case 'customer_bank_transfer_created':
-          await TransferCollection.updateOne(
-            { dwollaTransferUrl: transferUrl },
-            { $set: { status: 'completed' } },
-          );
+          console.log(`🏦 BANK_TRANSFER_CREATED: ${resourceId}`);
           break;
 
-        case 'customer_bank_transfer_completed':
-          await TransferCollection.updateOne(
-            { dwollaTransferUrl: transferUrl },
-            { $set: { status: 'completed' } },
-          );
+        case 'customer_bank_transfer_completed': {
+          console.log(`💰 BANK_TRANSFER_COMPLETED: ${resourceId}`);
+
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'completed' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'completed'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
           break;
+        }
+
+        case 'customer_bank_transfer_failed': {
+          console.log(`❌ BANK_TRANSFER_FAILED: ${resourceId}`);
+
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'failed' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'failed'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
+          break;
+        }
+
+        case 'customer_bank_transfer_cancelled': {
+          console.log(`🚫 BANK_TRANSFER_CANCELLED: ${resourceId}`);
+
+          const transfer = await TransferCollection.findOne({
+            dwollaTransferId: resourceId,
+          });
+          if (transfer) {
+            await TransferCollection.updateOne(
+              { _id: transfer._id },
+              { $set: { status: 'cancelled' } },
+            );
+            console.log(`🔄 Transfer статус обновлён на 'cancelled'`);
+          } else {
+            console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
+          }
+
+          break;
+        }
 
         default:
           console.log(`🔔 Необработанный webhook: ${webhook.topic}`);
