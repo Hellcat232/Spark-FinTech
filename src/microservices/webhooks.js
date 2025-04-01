@@ -11,90 +11,82 @@ import {
   getDwollaWebhookSubscriptions,
 } from '../thirdAPI/initDwolla.js';
 import { env } from '../utils/env.js';
+import { syncTransferEvents } from '../utils/syncTransferEvents.js';
 
 export const processWebhooksPlaid = async () => {
   const pendingWebhooks = await plaidWebhookQueue.find({ status: 'pending' });
 
   for (const webhook of pendingWebhooks) {
+    const { webhook_type, webhook_code, payload, asset_report_id, _id, item_id } = webhook;
+
     try {
-      console.log(`⚙️ Обрабатываем WebHook: ${webhook.webhook_type} - ${webhook.webhook_code}`);
+      console.log(`⚙️ Обрабатываем Plaid WebHook: ${webhook_type} - ${webhook_code}`);
 
-      switch (webhook.webhook_type) {
-        case 'ASSETS':
-          await fetchAssetReport(webhook.asset_report_id);
-          break;
-
-        case 'TRANSACTIONS':
-          // await processTransactionUpdate(webhook.payload);
-          console.log(webhook);
-
-          break;
-
-        case 'IDENTITY':
-          // await processIdentityUpdate(webhook.payload);
-          console.log(webhook);
-          break;
-
-        case 'TRANSFER':
-          if (webhook.webhook_code === 'TRANSFER_EVENTS_UPDATE') {
-            const sync = await plaidClient.transferEventSync({
-              after_id: 0,
-            });
-            //debit
-            if (
-              sync.data.transfer_events.at(0).transfer_type === 'debit' &&
-              sync.data.transfer_events.at(0).event_type === 'pending'
-            ) {
-              // await plaidClient.sandboxTransferSimulate({
-              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
-              //   event_type: 'posted',
-              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              // });
-            }
-            if (
-              sync.data.transfer_events.at(0).transfer_type === 'debit' &&
-              sync.data.transfer_events.at(0).event_type === 'posted'
-            ) {
-              // await plaidClient.sandboxTransferSimulate({
-              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
-              //   event_type: 'settled',
-              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              // });
-            }
-
-            //credit
-            if (
-              sync.data.transfer_events.at(0).transfer_type === 'credit' &&
-              sync.data.transfer_events.at(0).event_type === 'pending'
-            ) {
-              // await plaidClient.sandboxTransferSimulate({
-              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
-              //   event_type: 'posted',
-              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              // });
-            }
-            if (
-              sync.data.transfer_events.at(0).transfer_type === 'credit' &&
-              sync.data.transfer_events.at(0).event_type === 'posted'
-            ) {
-              // await plaidClient.sandboxTransferSimulate({
-              //   transfer_id: sync.data.transfer_events.at(0).transfer_id,
-              //   event_type: 'settled',
-              //   failure_reason: sync.data.transfer_events.at(0).failure_reason,
-              // });
-            }
+      switch (webhook_type) {
+        case 'ASSETS': {
+          if (webhook_code === 'PRODUCT_READY') {
+            await fetchAssetReport(asset_report_id);
+          } else {
+            console.log(`📦 ASSETS → ${webhook_code}`);
           }
-          console.log(webhook);
           break;
+        }
+
+        case 'TRANSACTIONS': {
+          if (webhook_code === 'INITIAL_UPDATE') {
+            console.log('🧾 TRANSACTIONS → Initial update');
+          } else if (webhook_code === 'HISTORICAL_UPDATE') {
+            console.log('🧾 TRANSACTIONS → Historical update');
+          } else if (webhook_code === 'DEFAULT_UPDATE') {
+            console.log('🧾 TRANSACTIONS → Default update');
+          } else {
+            console.log(`🧾 TRANSACTIONS → ${webhook_code}`);
+          }
+          break;
+        }
+
+        case 'TRANSFER': {
+          if (webhook_code === 'TRANSFER_EVENTS_UPDATE') {
+            console.log('🔄 TRANSFER → Events update');
+            await plaidWebhookQueue.updateMany(
+              { webhook_code },
+              {
+                $unset: {
+                  userId: 1,
+                  transaction_id: 1,
+                  asset_report_id: 1,
+                },
+              },
+            );
+            // await syncTransferEvents(webhook.userId || null); // если userId есть — передаём
+          } else {
+            console.log(`🔄 TRANSFER → ${webhook_code}`);
+          }
+          break;
+        }
+
+        case 'IDENTITY': {
+          console.log(`🪪 IDENTITY → ${webhook_code}`);
+          break;
+        }
+
+        case 'ITEM': {
+          if (webhook_code === 'NEW_ACCOUNTS_AVAILABLE') {
+            const user = await UserRegisterCollection.findOne({ plaidItemId: item_id });
+
+            console.log(`New account for user ${user?._id} available`);
+          }
+
+          break;
+        }
 
         default:
-          console.log(`⚠️ Неизвестный тип WebHook: ${webhook.webhook_type}`);
+          console.log(`❓ Неизвестный webhook_type: ${webhook_type}`);
       }
 
-      // Помечаем WebHook как обработанный
-      await plaidWebhookQueue.updateOne({ _id: webhook._id }, { $set: { status: 'completed' } });
-    } catch (error) {
-      console.error('❌ Ошибка при обработке WebHook:', error.message);
+      await plaidWebhookQueue.updateOne({ _id }, { $set: { status: 'completed' } });
+    } catch (err) {
+      console.error(`❌ Ошибка в обработке Plaid Webhook: ${err.message}`);
     }
   }
 };
@@ -120,18 +112,18 @@ export const proccessWebhookDwolla = async () => {
           const user = await UserRegisterCollection.findOne({
             dwollaCustomerURL: payload?._links?.customer?.href,
           });
-          if (!user) {
+          if (user) {
+            await UserRegisterCollection.updateOne(
+              { _id: user._id },
+              {
+                $set: {
+                  dwollaCustomerHasVerify: true,
+                },
+              },
+            );
+          } else {
             console.log(`Пользователь с таким ${payload?._links?.customer?.href} не найден`);
           }
-
-          await UserRegisterCollection.updateOne(
-            { _id: user._id },
-            {
-              $set: {
-                dwollaCustomerHasVerify: true,
-              },
-            },
-          );
 
           break;
         }

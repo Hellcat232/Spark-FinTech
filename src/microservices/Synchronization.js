@@ -18,7 +18,10 @@ const Synchronization = async () => {
 
     // console.log(transferEventSync.data.transfer_events);
 
-    if (transferEventSync.data.transfer_events.at(0).event_type === 'posted') {
+    if (
+      env('PLAID_ENVIRONMENT') === 'sandbox' &&
+      transferEventSync.data.transfer_events.at(0).event_type === 'posted'
+    ) {
       await plaidClient.sandboxTransferSimulate({
         transfer_id: transferEventSync.data.transfer_events.at(0).transfer_id,
         event_type: 'settled',
@@ -56,9 +59,11 @@ const Synchronization = async () => {
     }
 
     //Симулируем Webhook в Sandbox
-    await plaidClient.sandboxTransferFireWebhook({
-      webhook: env('WEBHOOK_URL'),
-    });
+    if (env('PLAID_ENVIRONMENT') === 'sandbox') {
+      await plaidClient.sandboxTransferFireWebhook({
+        webhook: env('WEBHOOK_URL'),
+      });
+    }
   } catch (error) {
     console.error('❌ Ошибка при синхронизации событий перевода:', error.message);
   }

@@ -3,15 +3,16 @@ import { Schema, model } from 'mongoose';
 const eventsTransferSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
-    eventId: { type: Number, required: true },
-    eventType: { type: String, required: true },
-    accountId: { type: String, required: true },
-    transferAmount: { type: String, required: true },
-    transferType: { type: String, required: true },
-    transferId: { type: String, required: true },
-    timestamp: { type: String, required: true },
+    eventId: { type: Number, required: true, unique: true },
+    eventType: { type: String, required: true }, // e.g. transfer_completed
+    accountId: { type: String },
+    transferAmount: { type: String },
+    transferType: { type: String }, // credit | debit
+    transferId: { type: String },
+    timestamp: { type: Date },
+    source: { type: String, enum: ['plaid', 'dwolla'], required: true },
   },
-  { versionKey: false, timestamps: true },
+  { timestamps: true, versionKey: false },
 );
 
 export const EventsTransferCollection = model('event', eventsTransferSchema);

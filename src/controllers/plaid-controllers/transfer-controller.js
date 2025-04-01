@@ -5,14 +5,6 @@ import { findUser } from '../../microservices/auth.js';
 import { env } from '../../utils/env.js';
 import { TransferCollection } from '../../database/models/transfersModel.js';
 
-// import {
-//   transferBetweenAccounts,
-//   cancelTransfer,
-//   transferListByEvents,
-//   transferInfo,
-//   transferList,
-// } from '../../microservices/plaid/transfer-service.js';
-
 import {
   createDebitTransfer,
   createCreditTransfer,
@@ -21,7 +13,7 @@ import {
   getTransferHistory,
   transferInfo,
   transferList,
-} from '../../microservices/plaid/transfer-service-d.js';
+} from '../../microservices/plaid/transfer-service.js';
 
 /*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
 export const createDebitTransferController = async (req, res) => {

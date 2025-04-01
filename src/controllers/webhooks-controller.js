@@ -6,23 +6,19 @@ import { DwollaWebhoolQueue } from '../database/models/dwollaWebhookModel.js';
 import { findUser } from '../microservices/auth.js';
 import { dwollaClient } from '../thirdAPI/initDwolla.js';
 import { verifyDwollaSignature } from '../microservices/dwolla/verify-dwolla-signature.js';
+import { UserRegisterCollection } from '../database/models/userModel.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
-  if (
-    req.body.webhook_code === 'INITIAL_UPDATE' ||
-    req.body.webhook_code === 'HISTORICAL_UPDATE' ||
-    req.body.webhook_code === 'DEFAULT_UPDATE'
-  )
-    return;
-
-  console.log('Webhook got', req.body);
-
   try {
-    if (
-      req.body.webhook_code === 'BANK_TRANSFERS_EVENTS_UPDATE' ||
-      req.body.webhook_code === 'TRANSFER_EVENTS_UPDATE'
-    ) {
+    // const itemId = req.body?.item_id || null;
+    console.log('Webhook-Plaid', req.body);
+
+    const user = await UserRegisterCollection.findOne({
+      plaidItemId: req.body?.item_id || null,
+    }).lean();
+    if (user) {
       await plaidWebhookQueue.create({
+        userId: user._id,
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
         asset_report_id: req.body.asset_report_id || null,
@@ -30,39 +26,9 @@ export const webhookControllerPlaid = async (req, res, next) => {
         payload: req.body,
         status: 'pending',
       });
-    }
-
-    if (req.body.item_id) {
-      const user = await findUser({ plaidItemId: req.body.item_id });
-      if (!user) {
-        throw createHttpError(404, "User wasn't found");
-      } else if (!user.plaidItemId) {
-        throw createHttpError(400, 'Plaid not connected');
-      }
-
+    } else {
       await plaidWebhookQueue.create({
-        userId: user ? user._id : null,
-        webhook_type: req.body.webhook_type,
-        webhook_code: req.body.webhook_code,
-        asset_report_id: req.body.asset_report_id || null,
-        transaction_id: req.body.transaction_id || null,
-        payload: req.body,
-        status: 'pending',
-      });
-    }
-
-    if (req.body.asset_report_id) {
-      const user = await findUser({ reportAssetsId: req.body.asset_report_id });
-      if (!user) {
-        throw createHttpError(404, "User wasn't found");
-      } else if (!user.plaidItemId) {
-        throw createHttpError(400, 'Plaid not connected');
-      } else if (!user.reportAssetsId && !user.reportAssetsToken) {
-        throw createHttpError(400, "Can't create report without credentials");
-      }
-
-      await plaidWebhookQueue.create({
-        userId: user ? user._id : null,
+        userId: null,
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
         asset_report_id: req.body.asset_report_id || null,
@@ -98,6 +64,14 @@ export const webhookControllerDwolla = async (req, res, next) => {
       return res.status(200).send('Duplicate ignored');
     }
 
+    const user = await UserRegisterCollection.findOne({
+      dwollaCustomerURL: req.body?._links?.customer?.href,
+    });
+    if (!user) {
+      console.log('User was deleted from base');
+      return res.status(200).send('User was deleted from base');
+    }
+
     // Добавляем webhook в очередь
     await DwollaWebhoolQueue.create({
       webhookId: req.body.id,
@@ -107,18 +81,6 @@ export const webhookControllerDwolla = async (req, res, next) => {
       status: isValid ? 'pending' : 'rejected',
       signatureValid: isValid,
     });
-
-    const transferDetails = await dwollaClient.get(`transfers/${req.body.resourceId}`);
-    if (transferDetails.body.status === 'pending') {
-      await dwollaClient.post(`sandbox-simulations`, {
-        _links: {
-          transfer: {
-            href: transferDetails?.body?._links?.self?.href, // твой transfer.href
-          },
-        },
-        status: 'processed', // Или 'failed' или 'cancelled'
-      });
-    }
 
     if (!isValid) {
       console.warn(`❌ Подпись не прошла проверку: ${req.body.id}`);

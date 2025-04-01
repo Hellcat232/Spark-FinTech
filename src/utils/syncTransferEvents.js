@@ -1,7 +1,7 @@
 import { EventsTransferCollection } from '../database/models/eventsTransferModel.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
 
-export const syncTransferEvents = async (userId, session) => {
+export const syncTransferEvents = async (userId) => {
   const lastEvent = await EventsTransferCollection.findOne().sort({ timestamp: -1 }).lean();
   let lastEventId = lastEvent ? lastEvent.eventId : 0;
 
@@ -38,6 +38,6 @@ export const syncTransferEvents = async (userId, session) => {
   }));
 
   // Выполняем bulkWrite для пакетного обновления
-  await EventsTransferCollection.bulkWrite(bulkOps, { session });
+  await EventsTransferCollection.bulkWrite(bulkOps);
   // console.log('Результат bulkWrite:', bulkResult);
 };
