@@ -2,7 +2,8 @@ import { Schema, model } from 'mongoose';
 
 const webhookSchema = new Schema(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    transferId: { type: String, required: true },
     webhook_type: { type: String, required: true },
     webhook_code: { type: String, required: true },
     asset_report_id: { type: String, default: null },

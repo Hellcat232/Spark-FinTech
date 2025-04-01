@@ -5,7 +5,10 @@ const transferSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User' }, // Кто инициировал перевод
     transferId: { type: String, required: true },
     amount: { type: String, required: true },
-    status: { type: String, required: true }, // pending, settled и т.д.
+    publicStatus: { type: String, required: false },
+    dwollaStatus: { type: String, required: false },
+    plaidStatus: { type: String, required: false }, // pending, settled и т.д.
+    cancellable: { type: Boolean, default: false, required: false },
     type: { type: String, required: true }, // debit или credit
     accountId: { type: String, required: true }, // С какого счёта
     groupId: { type: String, required: true }, // Чтобы группировать пары переводов

@@ -9,7 +9,10 @@ export const writeToDB = async (user, debitOrCredit, from, to, session, extra = 
     userId: user._id,
     transferId: debitOrCredit.data.transfer.id,
     amount: debitOrCredit.data.transfer.amount,
-    status: debitOrCredit.data.transfer.status,
+    publicStatus: null,
+    dwollaStatus: null,
+    plaidStatus: null,
+    cancellable: false,
     // status: 'settled', //for sandbox
     type: debitOrCredit.data.transfer.type,
     accountId: debitOrCredit.data.transfer.account_id,

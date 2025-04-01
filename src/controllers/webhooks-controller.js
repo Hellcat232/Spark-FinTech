@@ -7,11 +7,25 @@ import { findUser } from '../microservices/auth.js';
 import { dwollaClient } from '../thirdAPI/initDwolla.js';
 import { verifyDwollaSignature } from '../microservices/dwolla/verify-dwolla-signature.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
+import { syncTransferEvents } from '../utils/syncTransferEvents.js';
+import { syncTransferEventsWithUserId } from '../utils/syncTransferEventsWithUserId.js';
+import { plaidClient } from '../thirdAPI/initPlaid.js';
+import { TransferCollection } from '../database/models/transfersModel.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
   try {
-    // const itemId = req.body?.item_id || null;
     console.log('Webhook-Plaid', req.body);
+
+    // Синхронизация TransferEvents (если это нужный Webhook)
+    const synced = await syncTransferEventsWithUserId(
+      req.body.webhook_type,
+      req.body.webhook_code,
+      req.body,
+    );
+
+    if (synced) {
+      return res.status(200).send('Transfer events synced');
+    }
 
     const user = await UserRegisterCollection.findOne({
       plaidItemId: req.body?.item_id || null,

@@ -63,6 +63,7 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
       description: 'payment',
       metadata: { groupId },
     });
+    // console.log(debitResponse);
 
     //for Plaid's sandbox
     if (env('PLAID_ENVIRONMENT') === 'sandbox' && debitResponse) {
@@ -81,13 +82,14 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
 
     if (from?.fundingSourceURL && to?.fundingSourceURL) {
       const dwollaTransferRes = await sendMoney(from, to, amount);
+      // console.log(dwollaTransferRes);
 
       const dwollaTransferUrl = dwollaTransferRes.headers?.get('location');
 
       //for dwolla's sandbox
-      if (env('DWOLLA_ENVIRONMENT') === 'sandbox') {
-        await simulateDwollaTransferStatus(dwollaTransferUrl, 'processed');
-      }
+      // if (env('DWOLLA_ENVIRONMENT') === 'sandbox') {
+      //   await simulateDwollaTransferStatus(dwollaTransferUrl, 'processed');
+      // }
 
       const dwollaTransferId = dwollaTransferUrl?.split('/').pop();
 
@@ -183,22 +185,29 @@ export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legal
 
     const from = await BankAccountCollection.findOne({ accountId: sendFrom });
     const to = await BankAccountCollection.findOne({ accountId: sendTo });
+
     if (from?.fundingSourceURL && to?.fundingSourceURL) {
-      await dwollaClient.post('transfers', {
-        _links: {
-          source: { href: from.fundingSourceURL },
-          destination: { href: to.fundingSourceURL },
-        },
-        amount: { currency: 'USD', value: amount },
+      const dwollaTransferRes = await sendMoney(to, from, amount);
+
+      const dwollaTransferUrl = dwollaTransferRes.headers?.get('location');
+
+      //for dwolla's sandbox
+      if (env('DWOLLA_ENVIRONMENT') === 'sandbox') {
+        await simulateDwollaTransferStatus(dwollaTransferUrl, 'processed');
+      }
+
+      const dwollaTransferId = dwollaTransferUrl?.split('/').pop();
+
+      //Записали перевод в базу
+      const transferDetails = await writeToDB(user, creditResponse, from, to, session, {
+        dwollaTransferId,
+        dwollaTransferUrl,
       });
 
-      console.log('✅ Деньги успешно получены через Dwolla');
+      console.log('✅ Деньги успешно отправлены через Dwolla');
     } else {
       throw new Error('Не найдены funding source у отправителя или получателя');
     }
-
-    //Записали перевод в базу
-    const transferDetails = await writeToDB(user, creditResponse, from, to, session);
 
     // Синхронизация событий после кредитного перевода
     await syncTransferEvents(user._id, session);
@@ -211,7 +220,7 @@ export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legal
     }
 
     await session.commitTransaction();
-    return { creditDetails: creditResponse.data.transfer, transferDetails };
+    return { creditDetails: creditResponse.data.transfer };
   } catch (error) {
     console.log(error.message);
     await session.abortTransaction();

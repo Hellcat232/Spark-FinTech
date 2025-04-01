@@ -28,3 +28,14 @@ export const sendMoney = async (from, to, amount) => {
     console.log(error);
   }
 };
+
+export const dwollaGetTransferInfo = async (resourceId) => {
+  try {
+    const info = await dwollaClient.get(`transfers/${resourceId}`);
+
+    return info;
+  } catch (error) {
+    console.log(error);
+    throw createHttpError(400, error?.body);
+  }
+};

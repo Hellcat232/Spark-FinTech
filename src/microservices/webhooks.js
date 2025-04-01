@@ -10,6 +10,7 @@ import {
   updateDwollaWebhook,
   getDwollaWebhookSubscriptions,
 } from '../thirdAPI/initDwolla.js';
+import { dwollaGetTransferInfo } from './dwolla/dwolla-transfer-service.js';
 import { env } from '../utils/env.js';
 import { syncTransferEvents } from '../utils/syncTransferEvents.js';
 
@@ -17,7 +18,16 @@ export const processWebhooksPlaid = async () => {
   const pendingWebhooks = await plaidWebhookQueue.find({ status: 'pending' });
 
   for (const webhook of pendingWebhooks) {
-    const { webhook_type, webhook_code, payload, asset_report_id, _id, item_id } = webhook;
+    const {
+      webhook_type,
+      webhook_code,
+      payload,
+      asset_report_id,
+      _id,
+      item_id,
+      userId,
+      transferId,
+    } = webhook;
 
     try {
       console.log(`⚙️ Обрабатываем Plaid WebHook: ${webhook_type} - ${webhook_code}`);
@@ -52,9 +62,21 @@ export const processWebhooksPlaid = async () => {
               { webhook_code },
               {
                 $unset: {
-                  userId: 1,
+                  // userId: 1,
                   transaction_id: 1,
                   asset_report_id: 1,
+                },
+              },
+            );
+
+            const transferStatus = await plaidClient.transferGet({
+              transfer_id: transferId,
+            });
+            await TransferCollection.updateOne(
+              { transferId: transferStatus.data.transfer.id },
+              {
+                $set: {
+                  plaidStatus: transferStatus.data.transfer.status,
                 },
               },
             );
@@ -194,7 +216,7 @@ export const proccessWebhookDwolla = async () => {
               { _id: transfer._id },
               { $set: { status: 'settled' } },
             );
-            console.log(`🔄 Transfer статус обновлён на 'completed'`);
+            console.log(`🔄 Transfer статус обновлён на 'settled'`);
           } else {
             console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
           }
@@ -240,9 +262,27 @@ export const proccessWebhookDwolla = async () => {
           break;
         }
 
-        case 'customer_bank_transfer_created':
+        case 'customer_bank_transfer_created': {
+          const info = await dwollaGetTransferInfo(webhook.resourceId);
+          if (info) {
+            await TransferCollection.updateOne(
+              {
+                dwollaTransferId: info?.body?.id,
+              },
+              {
+                $set: {
+                  dwollaStatus: info.body.status,
+                  cancellable: true,
+                },
+              },
+            );
+          }
+
+          // console.log('FROM customer_bank_transfer_created', info);
+
           console.log(`🏦 BANK_TRANSFER_CREATED: ${resourceId}`);
           break;
+        }
 
         case 'customer_bank_transfer_completed': {
           console.log(`💰 BANK_TRANSFER_COMPLETED: ${resourceId}`);
@@ -253,9 +293,9 @@ export const proccessWebhookDwolla = async () => {
           if (transfer) {
             await TransferCollection.updateOne(
               { _id: transfer._id },
-              { $set: { status: 'completed' } },
+              { $set: { status: 'settled' } },
             );
-            console.log(`🔄 Transfer статус обновлён на 'completed'`);
+            console.log(`🔄 Transfer статус обновлён на 'settled'`);
           } else {
             console.warn(`❗ Transfer не найден для resourceId: ${resourceId}`);
           }
