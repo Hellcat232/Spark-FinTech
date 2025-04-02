@@ -12,7 +12,7 @@ import {
 } from '../thirdAPI/initDwolla.js';
 import { dwollaGetTransferInfo } from './dwolla/dwolla-transfer-service.js';
 import { env } from '../utils/env.js';
-import { syncTransferEvents } from '../utils/syncTransferEvents.js';
+import { writeToTransferEventsDB } from '../utils/writeToTransferEventsDB.js';
 
 export const processWebhooksPlaid = async () => {
   const pendingWebhooks = await plaidWebhookQueue.find({ status: 'pending' });
@@ -292,7 +292,7 @@ export const proccessWebhookDwolla = async () => {
           });
           if (transfer) {
             await TransferCollection.updateOne(
-              { _id: transfer._id },
+              { transferId: transfer._id },
               { $set: { status: 'settled' } },
             );
             console.log(`🔄 Transfer статус обновлён на 'settled'`);

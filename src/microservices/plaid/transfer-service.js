@@ -4,10 +4,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { plaidClient } from '../../thirdAPI/initPlaid.js';
 import { env } from '../../utils/env.js';
-import { syncTransferEvents } from '../../utils/syncTransferEvents.js';
+import { writeToTransferEventsDB } from '../../utils/writeToTransferEventsDB.js';
 
 import { TransferCollection } from '../../database/models/transfersModel.js';
-import { EventsTransferCollection } from '../../database/models/eventsTransferModel.js';
+import { TransferEventsCollection } from '../../database/models/eventsTransferModel.js';
 import { BankAccountCollection } from '../../database/models/accountsModel.js';
 import { dwollaClient } from '../../thirdAPI/initDwolla.js';
 import { writeToDB } from '../../utils/writeToDB.js';
@@ -87,9 +87,9 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
       const dwollaTransferUrl = dwollaTransferRes.headers?.get('location');
 
       //for dwolla's sandbox
-      // if (env('DWOLLA_ENVIRONMENT') === 'sandbox') {
-      //   await simulateDwollaTransferStatus(dwollaTransferUrl, 'processed');
-      // }
+      if (env('DWOLLA_ENVIRONMENT') === 'sandbox') {
+        await simulateDwollaTransferStatus(dwollaTransferUrl, 'processed');
+      }
 
       const dwollaTransferId = dwollaTransferUrl?.split('/').pop();
 
@@ -103,9 +103,6 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
     } else {
       throw new Error('Не найдены funding source у отправителя или получателя');
     }
-
-    // Синхронизация событий после дебетового списания
-    // await syncTransferEvents(user._id, session);
 
     //Симулируем Webhook в Sandbox
     if (env('PLAID_ENVIRONMENT') === 'sandbox') {

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { processWebhooksPlaid, proccessWebhookDwolla } from './microservices/webhooks.js';
-import Synchronization from './microservices/Synchronization.js';
+import { synchronizeTransferEventsBackUp } from './utils/synchronizeTransferEventsBackUp.js';
 import { env } from './utils/env.js';
 
 const db = `mongodb+srv://${env('MONGODB_USER')}:${env('MONGODB_PASSWORD')}@${env(
@@ -12,7 +12,7 @@ mongoose.connect(db);
 // Запускаем синхронизацию трансферов каждые 5 минут
 setInterval(async () => {
   console.log('🔄 Запуск Synchronization...');
-  await Synchronization();
+  await synchronizeTransferEventsBackUp();
 }, 5 * 60 * 1000);
 
 console.log('🚀 WebHook Worker запущен и слушает WebHooks...');

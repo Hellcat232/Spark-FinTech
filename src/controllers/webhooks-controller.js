@@ -7,14 +7,14 @@ import { findUser } from '../microservices/auth.js';
 import { dwollaClient } from '../thirdAPI/initDwolla.js';
 import { verifyDwollaSignature } from '../microservices/dwolla/verify-dwolla-signature.js';
 import { UserRegisterCollection } from '../database/models/userModel.js';
-import { syncTransferEvents } from '../utils/syncTransferEvents.js';
+import { writeToTransferEventsDB } from '../utils/writeToTransferEventsDB.js';
 import { syncTransferEventsWithUserId } from '../utils/syncTransferEventsWithUserId.js';
 import { plaidClient } from '../thirdAPI/initPlaid.js';
-import { TransferCollection } from '../database/models/transfersModel.js';
+import { EventsCollection } from '../database/models/eventsModel.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
   try {
-    console.log('Webhook-Plaid', req.body);
+    // console.log('Webhook-Plaid', req.body);
 
     // Синхронизация TransferEvents (если это нужный Webhook)
     const synced = await syncTransferEventsWithUserId(
@@ -30,19 +30,11 @@ export const webhookControllerPlaid = async (req, res, next) => {
     const user = await UserRegisterCollection.findOne({
       plaidItemId: req.body?.item_id || null,
     }).lean();
-    if (user) {
-      await plaidWebhookQueue.create({
-        userId: user._id,
-        webhook_type: req.body.webhook_type,
-        webhook_code: req.body.webhook_code,
-        asset_report_id: req.body.asset_report_id || null,
-        transaction_id: req.body.transaction_id || null,
-        payload: req.body,
-        status: 'pending',
-      });
+    if (!user) {
+      return res.status(200).send('User was deleted from DB');
     } else {
       await plaidWebhookQueue.create({
-        userId: null,
+        userId: user._id || null,
         webhook_type: req.body.webhook_type,
         webhook_code: req.body.webhook_code,
         asset_report_id: req.body.asset_report_id || null,
@@ -64,7 +56,7 @@ export const webhookControllerDwolla = async (req, res, next) => {
     const rawBody = JSON.stringify(req.body);
     const isValid = verifyDwollaSignature(signature, rawBody);
 
-    console.log('Webhook-Dwolla', req.body);
+    // console.log('Webhook-Dwolla', req.body);
 
     // Проверяем, был ли уже такой webhook по resourceId + topic
     const duplicate = await DwollaWebhoolQueue.findOne({
