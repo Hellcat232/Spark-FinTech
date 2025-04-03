@@ -14,7 +14,7 @@ import { EventsCollection } from '../database/models/eventsModel.js';
 
 export const webhookControllerPlaid = async (req, res, next) => {
   try {
-    // console.log('Webhook-Plaid', req.body);
+    console.log('Webhook-Plaid', req.body);
 
     // Синхронизация TransferEvents (если это нужный Webhook)
     const synced = await syncTransferEventsWithUserId(
@@ -56,7 +56,7 @@ export const webhookControllerDwolla = async (req, res, next) => {
     const rawBody = JSON.stringify(req.body);
     const isValid = verifyDwollaSignature(signature, rawBody);
 
-    // console.log('Webhook-Dwolla', req.body);
+    console.log('Webhook-Dwolla', req.body);
 
     // Проверяем, был ли уже такой webhook по resourceId + topic
     const duplicate = await DwollaWebhoolQueue.findOne({

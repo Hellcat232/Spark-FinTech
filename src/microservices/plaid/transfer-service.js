@@ -11,13 +11,14 @@ import { TransferEventsCollection } from '../../database/models/eventsTransferMo
 import { BankAccountCollection } from '../../database/models/accountsModel.js';
 import { dwollaClient } from '../../thirdAPI/initDwolla.js';
 import { writeToDB } from '../../utils/writeToDB.js';
+import { rtpTransferCreate } from './rtp-service.js';
 import { sendMoney } from '../dwolla/dwolla-transfer-service.js';
 import { simulateDwollaTransferStatus } from '../../utils/simulateDwollaTransferStatus.js';
 
 /*Использовать для платежей, без одобрением через UI*/
 
 /*==========================Отправляем средства=================*/
-export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalName) => {
+export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalName, network) => {
   const session = await mongoose.startSession();
   const groupId = uuidv4();
 
@@ -34,7 +35,7 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
       access_token: user.plaidAccessToken,
       account_id: sendFrom,
       amount: amount, // Сумма в строковом формате
-      network: 'ach', // Используем ACH
+      network: network,
       type: 'debit',
       ach_class: 'ppd', // PPD - личные платежи (можно использовать ccd)
       user: {
@@ -127,13 +128,18 @@ export const createDebitTransfer = async (user, amount, sendFrom, sendTo, legalN
 };
 
 /*==========================Запрашиваем средства=================*/
-export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legalName) => {
+export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legalName, network) => {
+  if (network === 'rtp') {
+    await rtpTransferCreate(user, amount, sendFrom, sendTo, legalName, network);
+  }
+
   const session = await mongoose.startSession();
   const groupId = uuidv4();
 
   try {
     session.startTransaction();
 
+    // Обычная логика ACH / Same-Day ACH
     const creditAuth = await plaidClient.transferAuthorizationCreate({
       access_token: user.plaidAccessToken,
       account_id: sendFrom,
@@ -207,7 +213,7 @@ export const createCreditTransfer = async (user, amount, sendFrom, sendTo, legal
     }
 
     // Синхронизация событий после кредитного перевода
-    await syncTransferEvents(user._id, session);
+    // await syncTransferEvents(user._id, session);
 
     //Симулируем Webhook в Sandbox
     if (env('PLAID_ENVIRONMENT') === 'sandbox') {

@@ -18,7 +18,7 @@ import {
 /*========================Отправляем на FrontEnd результат авторизации трансфера и записываем в базу=============*/
 export const createDebitTransferController = async (req, res) => {
   const { refreshToken } = req.cookies;
-  const { amount, sendFrom, sendTo, legalName } = req.body;
+  const { amount, sendFrom, sendTo, legalName, network } = req.body;
   // console.log(req.body);
 
   const decode = await jwt.verify(refreshToken, env('JWT_SECRET'));
@@ -33,7 +33,7 @@ export const createDebitTransferController = async (req, res) => {
     throw createHttpError(400, 'Plaid not connected');
   }
 
-  const transfer = await createDebitTransfer(user, amount, sendFrom, sendTo, legalName);
+  const transfer = await createDebitTransfer(user, amount, sendFrom, sendTo, legalName, network);
 
   res.status(200).json({
     success: true,
